@@ -5,8 +5,8 @@ import yaml
 import csv
 from PIL import Image
 
-import LibFunctions as lib
-from TrajectoryPlanner import MinCurvatureTrajectory, ObsAvoidTraj, ShortestTraj, Max_velocity
+import src.LibFunctions as lib
+from src.TrajectoryPlanner import MinCurvatureTrajectory, ObsAvoidTraj, ShortestTraj, Max_velocity
 
 class SimMap:
     def __init__(self, config) -> None:

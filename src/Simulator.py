@@ -2,12 +2,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 import src.LibFunctions as lib
-
+from src.SimMaps import TrackMap, ForestMap
 
 
 class CarModel:
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, sim_conf):
         self.x = 0
         self.y = 0
         self.theta = 0
@@ -17,14 +16,14 @@ class CarModel:
 
         self.prev_loc = 0
 
-        self.wheelbase = config['car']['l_f'] + config['car']['l_r']
-        self.mass = config['car']['m']
-        self.mu = config['car']['mu']
+        self.wheelbase = sim_conf.l_f + sim_conf.l_r
+        self.mass = sim_conf.m
+        self.mu = sim_conf.mu
 
-        self.max_d_dot = config['lims']['max_d_dot']
-        self.max_steer = config['lims']['max_steer']
-        self.max_a = config['lims']['max_a']
-        self.max_v = config['lims']['max_v']
+        self.max_d_dot = sim_conf.max_d_dot
+        self.max_steer = sim_conf.max_steer
+        self.max_a = sim_conf.max_a
+        self.max_v = sim_conf.max_v
         self.max_friction_force = self.mass * self.mu * 9.81
 
     def update_kinematic_state(self, a, d_dot, dt):
@@ -52,6 +51,8 @@ class CarModel:
         state.append(self.velocity) #3
         state.append(self.steering)  #4
 
+        state = np.array(state)
+
         return state
 
 
@@ -72,7 +73,10 @@ class ScanSimulator:
         self.x_bound = [1, 99]
         self.y_bound = [1, 99]
 
-    def get_scan(self, x, y, theta):
+    def get_scan(self, pose):
+        x = pose[0]
+        y = pose[1]
+        theta = pose[2]
         for i in range(self.number_of_beams):
             scan_theta = theta + self.dth * i - self.fov/2
             self.scan_output[i] = self.trace_ray(x, y, scan_theta)
@@ -99,8 +103,8 @@ class ScanSimulator:
 
 
 class SimHistory:
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, sim_conf):
+        self.sim_conf = sim_conf
         self.positions = []
         self.steering = []
         self.velocities = []
@@ -153,11 +157,11 @@ class SimHistory:
         plt.pause(0.001)
 
     def show_forces(self):
-        mu = self.config['car']['mu']
-        m = self.config['car']['m']
-        g = self.config['car']['g']
-        l_f = self.config['car']['l_f']
-        l_r = self.config['car']['l_r']
+        mu = self.sim_conf['car']['mu']
+        m = self.sim_conf['car']['m']
+        g = self.sim_conf['car']['g']
+        l_f = self.sim_conf['car']['l_f']
+        l_r = self.sim_conf['car']['l_r']
         f_max = mu * m * g
         f_long_max = l_f / (l_r + l_f) * f_max
 
@@ -165,7 +169,7 @@ class SimHistory:
         self.thetas = np.array(self.thetas)
 
         # divide by time taken for change to get per second
-        t = self.config['sim']['timestep'] * self.config['sim']['update_f']
+        t = self.sim_conf['sim']['timestep'] * self.sim_conf['sim']['update_f']
         v_dot = (self.velocities[1:] - self.velocities[:-1]) / t
         oms = (self.thetas[1:] - self.thetas[:-1]) / t
 
@@ -193,14 +197,14 @@ class BaseSim:
     """
     def __init__(self, env_map):
         self.env_map = env_map
-        self.config = self.env_map.config
-        self.n_obs = self.config['map']['n_obs']
+        self.sim_conf = self.env_map.sim_conf
+        self.n_obs = self.env_map.n_obs
 
-        self.timestep = self.config['sim']['timestep']
-        self.eps = 0
+        self.timestep = self.sim_conf.time_step
 
-
-        self.car = CarModel(self.config)
+        self.car = CarModel(self.sim_conf)
+        self.scan_sim = ScanSimulator(self.sim_conf.n_beams)
+        self.scan_sim.set_check_fcn(self.env_map.check_scan_location)
 
         self.done = False
         self.reward = 0
@@ -208,18 +212,16 @@ class BaseSim:
         self.action_memory = []
         self.steps = 0
 
-        self.history = SimHistory(self.config)
+        self.history = SimHistory(self.sim_conf)
         self.done_reason = ""
-        self.y_forces = []
 
     def base_step(self, action, done_fcn):
         self.steps += 1
-
         v_ref = action[0]
         d_ref = action[1]
         self.action = action
 
-        frequency_ratio = 10 # cs updates per planning update
+        frequency_ratio = 1 # cs updates per planning update
         self.car.prev_loc = [self.car.x, self.car.y]
         for i in range(frequency_ratio):
             acceleration, steer_dot = self.control_system(v_ref, d_ref)
@@ -267,7 +269,6 @@ class BaseSim:
         self.action_memory.clear()
         self.done = False
 
-    
     def render(self, wait=False, scan_sim=None, save=False, pts1=None, pts2=None):
         self.env_map.render_map(4)
         fig = plt.figure(4)
@@ -395,45 +396,46 @@ class BaseSim:
         if wait:
             plt.show()
   
+    def get_observation(self):
+        car_obs = self.car.get_car_state()
+        pose = car_obs[0:3]
+        scan = self.scan_sim.get_scan(pose)
+
+        observation = np.concatenate([car_obs, scan])
+        return observation
 
 class TrackSim(BaseSim):
     """
     Simulator for Race Tracks
     """
-    def __init__(self, env_map):
+    def __init__(self, sim_conf, map_name):
+        env_map = TrackMap(sim_conf, map_name)
         BaseSim.__init__(self, env_map)
 
     def step(self, action):
         d_func = self.check_done_reward_track_train
         self.base_step(action, d_func)
 
-        # self.check_done_reward_track_train()
-
-        obs = self.car.get_car_state()
+        obs = self.get_observation()
         done = self.done
         reward = self.reward
 
         return obs, reward, done, None
 
     def reset(self, add_obs=True):
-        self.car.x = self.env_map.start[0]
-        self.car.y = self.env_map.start[1]
+        self.car.x = self.env_map.start_pose[0]
+        self.car.y = self.env_map.start_pose[1]
         self.car.prev_loc = [self.car.x, self.car.y]
         self.car.velocity = 0
         self.car.steering = 0
-        self.car.theta = -np.pi/2
-        # TODO: have a theta start in config file
+        self.car.theta = self.env_map.start_pose[2]
 
         #TODO: combine with reset lap that it can be called every lap and do the right thing
 
         if add_obs:
-            wpts, vs = self.env_map.reset_map(self.n_obs)
-        else:
-            wpts, vs = self.env_map.reset_map(0)
-
-        s = self.base_reset()
-
-        return s, wpts, vs
+            self.env_map.add_obstacles()
+        
+        return self.get_observation()
 
     def check_done_reward_track_train(self):
         self.reward = 0 # normal
@@ -453,7 +455,7 @@ class TrackSim(BaseSim):
 
         car = [self.car.x, self.car.y]
         end_dis = 1
-        if lib.get_distance(car, self.env_map.start) < end_dis and self.steps > 50:
+        if lib.get_distance(car, self.env_map.start_pose[0:2]) < end_dis and self.steps > 100:
             self.done = True
             self.reward = 1
             self.done_reason = f"Lap complete"
@@ -467,7 +469,8 @@ class ForestSim(BaseSim):
     """
     Simulator for Race Tracks
     """
-    def __init__(self, env_map):
+    def __init__(self, sim_conf, map_name):
+        env_map = ForestMap(sim_conf)
         BaseSim.__init__(self, env_map)
 
     def step(self, action, dt=None):
@@ -542,52 +545,3 @@ class ForestSim(BaseSim):
 
           
 
-def CorridorCS(obs):
-    ranges = obs[5:]
-    max_range = np.argmax(ranges)
-
-    wa = 0
-    for i in range(10):
-        wa += ranges[i] * i
-    w_range = wa / 9
-
-    max_range = int(round(w_range))
-
-    dth = (np.pi * 2/ 3) / 9
-    theta_dot = dth * max_range - np.pi/3
-
-    ld = 0.5 # lookahead distance
-    delta_ref = np.arctan(2*0.33*np.sin(theta_dot)/ld)
-    delta_ref = np.clip(delta_ref, -0.4, 0.4)
-
-    v_ref = 2
-
-    return [v_ref, delta_ref]
-
-
-
-def sim_driver():
-    # race_map = TrackMap()
-    race_map = MinMapNpy('torino')
-    env = TrackSim(race_map)
-
-    done, state, score = False, env.reset(None), 0.0
-    while not done:
-        action = CorridorCS(state)
-        s_p, r, done, _ = env.step(action)
-        score += r
-        state = s_p
-
-        # env.min_render(True)
-        env.min_render(False)
-
-    print(f"Score: {score}")
-    env.show_history()
-    env.min_render(True)
-    # env.render_snapshot(True)
-
-
-
-
-if __name__ == "__main__":
-    sim_driver()

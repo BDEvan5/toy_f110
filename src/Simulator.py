@@ -6,6 +6,13 @@ from src.SimMaps import TrackMap, ForestMap
 
 
 class CarModel:
+    """
+    A simple class which holds the state of a car and can update the dynamics based on the bicycle model
+
+    Args:
+        sim_conf: a config namespace with relevant car parameters
+
+    """
     def __init__(self, sim_conf):
         self.x = 0
         self.y = 0
@@ -27,6 +34,15 @@ class CarModel:
         self.max_friction_force = self.mass * self.mu * 9.81
 
     def update_kinematic_state(self, a, d_dot, dt):
+        """
+        updates the state of the vehicle according to the kinematic equations for a bicycle model
+
+        Args:
+            a: acceleration
+            d_dot: rate of change of steering angle
+            dt: timestep in seconds
+
+        """
         self.x = self.x + self.velocity * np.sin(self.theta) * dt
         self.y = self.y + self.velocity * np.cos(self.theta) * dt
         theta_dot = self.velocity / self.wheelbase * np.tan(self.steering)
@@ -74,6 +90,14 @@ class ScanSimulator:
         self.y_bound = [1, 99]
 
     def get_scan(self, pose):
+        """
+        a simple function to get a laser scan reading for a given pose
+
+        Args:
+            pose: [x, y, theta] of the vehicle at present state
+        Returns:
+            scan: array of the output from the laser scan.
+        """
         x = pose[0]
         y = pose[1]
         theta = pose[2]

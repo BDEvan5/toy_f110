@@ -5,7 +5,10 @@ from src.Simulator import TrackSim, ForestSim
 import src.LibFunctions as lib
 
 
-def CorridorCS(obs):
+def follow_the_finder(obs):
+    """
+    Simple follow the longest range finder planner
+    """
     ranges = obs[5:]
     max_range = np.argmax(ranges)
 
@@ -27,6 +30,9 @@ def CorridorCS(obs):
 
 
 def track_sim_test():
+    """
+    Test for the track simulator
+    """
     sim_conf = lib.load_conf("std_config")
     map_name = "porto"
 
@@ -34,7 +40,7 @@ def track_sim_test():
 
     done, state, score = False, env.reset(None), 0.0
     while not done:
-        action = CorridorCS(state)
+        action = follow_the_finder(state)
         s_p, r, done, _ = env.step(action)
         score += r
         state = s_p
@@ -45,6 +51,9 @@ def track_sim_test():
 
 
 def forest_sim_test():
+    """
+    Test for the Forest simulator
+    """
     sim_conf = lib.load_conf("std_config")
     map_name = "forest"
 
@@ -52,7 +61,7 @@ def forest_sim_test():
 
     done, state, score = False, env.reset(), 0.0
     while not done:
-        action = CorridorCS(state)
+        action = follow_the_finder(state)
         s_p, r, done, _ = env.step(action)
         # env.render(False)
         score += r

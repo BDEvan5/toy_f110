@@ -8,10 +8,7 @@ def CorridorCS(obs):
     ranges = obs[5:]
     max_range = np.argmax(ranges)
 
-    wa = 0
-    for i in range(10):
-        wa += ranges[i] * i
-    w_range = wa / 9
+    w_range = np.argmax(ranges)
 
     max_range = int(round(w_range))
 
@@ -22,7 +19,7 @@ def CorridorCS(obs):
     delta_ref = np.arctan(2*0.33*np.sin(theta_dot)/ld)
     delta_ref = np.clip(delta_ref, -0.4, 0.4)
 
-    v_ref = 2
+    v_ref = 5
 
     return [v_ref, delta_ref]
 
@@ -49,9 +46,9 @@ def track_sim_test():
 
 def forest_sim_test():
     sim_conf = lib.load_conf("std_config")
-    map_name = "porto"
+    map_name = "forest"
 
-    env = TrackSim(sim_conf, map_name)
+    env = ForestSim(sim_conf, map_name)
 
     done, state, score = False, env.reset(None), 0.0
     while not done:

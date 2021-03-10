@@ -201,6 +201,7 @@ class BaseSim:
         self.n_obs = self.env_map.n_obs
 
         self.timestep = self.sim_conf.time_step
+        self.max_steps = self.sim_conf.max_steps
 
         self.car = CarModel(self.sim_conf)
         self.scan_sim = ScanSimulator(self.sim_conf.n_beams)
@@ -255,8 +256,6 @@ class BaseSim:
         self.action_memory = []
         self.steps = 0
         self.env_map.targets = []
-        
-        self.eps += 1
 
         self.history.reset_history()
 
@@ -411,6 +410,7 @@ class TrackSim(BaseSim):
     def __init__(self, sim_conf, map_name):
         env_map = TrackMap(sim_conf, map_name)
         BaseSim.__init__(self, env_map)
+        self.end_distance = sim_conf.end_distance
 
     def step(self, action):
         d_func = self.check_done_reward_track_train
@@ -449,13 +449,13 @@ class TrackSim(BaseSim):
             # self.done = True
             # self.reward = -1
             # self.done_reason = f"Friction limit reached: {horizontal_force} > {self.car.max_friction_force}"
-        if self.steps > 500:
+        if self.steps > self.max_steps:
             self.done = True
             self.done_reason = f"Max steps"
 
         car = [self.car.x, self.car.y]
         end_dis = 1
-        if lib.get_distance(car, self.env_map.start_pose[0:2]) < end_dis and self.steps > 100:
+        if lib.get_distance(car, self.env_map.start_pose[0:2]) < self.end_distance and self.steps > 100:
             self.done = True
             self.reward = 1
             self.done_reason = f"Lap complete"

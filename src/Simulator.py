@@ -470,9 +470,6 @@ class ForestSim(BaseSim):
 
         if add_obs:
             self.env_map.generate_forest()
-
-        print(f"Calling render in reset()")
-        self.render(True)
         
         return self.base_reset()
 

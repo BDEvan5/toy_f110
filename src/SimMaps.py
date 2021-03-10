@@ -29,7 +29,6 @@ class TrackMap:
 
         self.load_map()
 
-
     def load_map(self):
         file_name = 'maps/' + self.map_name + '.yaml'
         with open(file_name) as file:
@@ -372,8 +371,111 @@ class TrackMap2:
 
         return min_dist_segment
   
-
 class ForestMap:
+    def __init__(self, sim_conf, map_name) -> None:
+        self.sim_conf = sim_conf
+        self.map_name = map_name 
+
+        # map info
+        self.resolution = None
+        self.n_obs = None 
+        self.map_height = None
+        self.map_width = None
+        self.forest_length = None
+        self.forest_width = None
+        self.start_pose = None
+        self.obs_size = None
+        self.obstacle_buffer = None
+        self.end_y = None
+        
+        self.map_img = None
+
+        self.load_map()
+
+    def load_map(self):
+        file_name = 'maps/' + self.map_name + '.yaml'
+        with open(file_name) as file:
+            documents = yaml.full_load(file)
+            yaml_file = dict(documents.items())
+
+        try:
+            self.resolution = yaml_file['resolution']
+            self.n_obs = yaml_file['n_obs']
+            self.obs_size = yaml_file['obs_size']
+            self.start_pose = np.array(yaml_file['start_pose'])
+            self.forest_length = yaml_file['forest_length']
+            self.forest_width = yaml_file['forest_width']
+            self.obstacle_buffer = yaml_file['obstacle_buffer']
+            self.end_y = yaml_file['end_y']
+        except Exception as e:
+            print(e)
+            raise FileIO("Problem loading map yaml file")
+
+        self.map_height = int(self.forest_length / self.resolution)
+        self.map_width = int(self.forest_width / self.resolution)
+        self.map_img = np.zeros((self.map_width, self.map_height))
+
+    def generate_forest(self):
+        self.map_img = np.zeros((self.map_width, self.map_height))
+        rands = np.random.random((self.n_obs, 2))
+        xs = rands[:, 0] * (self.map_width-self.obs_size) 
+        ys = rands[:, 1] * (self.map_height - self.obstacle_buffer*2 - self.obs_size)
+        ys = ys + np.ones_like(ys) * self.start_pose[1]
+        obs_locations = np.concatenate([xs[:, None], ys[:, None]], axis=-1)
+        obs_locations = np.array(obs_locations, dtype=np.int)
+        obs_size_px = int(self.obs_size/self.resolution)
+        for location in obs_locations:
+            x, y = location[0], location[1]
+            self.map_img[x:x+obs_size_px, y:y+obs_size_px] = 1
+
+
+    def render_map(self, figure_n=1, wait=False):
+        #TODO: draw the track boundaries nicely
+        f = plt.figure(figure_n)
+        plt.clf()
+
+        plt.xlim([0, self.map_width])
+        plt.ylim([0, self.map_height])
+
+        plt.imshow(self.map_img.T, origin='lower')
+
+        xs = np.linspace(0, self.map_width, 10)
+        ys = np.ones_like(xs) * self.end_y / self.resolution
+        plt.plot(xs, ys, '--')     
+        x, y = self.xy_to_row_column(self.start_pose[0:2])
+        plt.plot(x, y, '*', markersize=14)
+
+        plt.pause(0.0001)
+        if wait:
+            plt.show()
+            pass
+
+
+    def xy_to_row_column(self, pt):
+        c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width-2)))
+        r = int(round(np.clip(pt[1] / self.resolution, 0, self.map_height-2)))
+        return c, r
+
+    def check_scan_location(self, x_in):
+        if x_in[0] < 0 or x_in[1] < 0:
+            return True
+        if x_in[0] > self.forest_width or x_in[1] > self.forest_length:
+            return True
+        x, y = self.xy_to_row_column(x_in)
+        if self.map_img[x, y]:
+            return True
+
+    def convert_positions(self, pts):
+        xs, ys = [], []
+        for pt in pts:
+            x, y = self.xy_to_row_column(pt)
+            xs.append(x)
+            ys.append(y)
+
+        return np.array(xs), np.array(ys)
+
+
+class ForestMap2:
     def __init__(self,config) -> None:
         self.config = config
         self.length = config['forest_len']

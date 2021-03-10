@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 import numpy as np 
 
 from src.Simulator import TrackSim, ForestSim
@@ -41,7 +42,6 @@ def track_sim_test():
     print(f"Score: {score}")
     env.history.show_history()
     env.render(True)
-    # env.render_snapshot(True)
 
 
 def forest_sim_test():
@@ -50,21 +50,21 @@ def forest_sim_test():
 
     env = ForestSim(sim_conf, map_name)
 
-    done, state, score = False, env.reset(None), 0.0
+    done, state, score = False, env.reset(), 0.0
     while not done:
         action = CorridorCS(state)
         s_p, r, done, _ = env.step(action)
+        # env.render(False)
         score += r
         state = s_p
 
     print(f"Score: {score}")
-    env.show_history()
-    env.render(True)
-    # env.render_snapshot(True)
+    env.history.show_history()
+    env.render(wait=True)
 
 
 
 
 if __name__ == "__main__":
-    track_sim_test()
-    # forest_sim_test()
+    # track_sim_test()
+    forest_sim_test()

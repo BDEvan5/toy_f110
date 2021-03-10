@@ -1,18 +1,11 @@
-crop_x:
-- 0
-- -1
-crop_y:
-- 0
-- -1
-free_thresh: 0.196
-image: forest.npy
-negate: 0
-occupied_thresh: 0.65
-origin:
-- -5.70654
-- -2.020793
-- 0.0
+
 resolution: 0.05
-start:
-- 3
-- 1
+forest_length: 30
+forest_width: 6
+start_pose: [3, 1, 0]
+end_y: 26
+obstacle_buffer: 3
+
+n_obs: 10
+obs_size: 0.5
+

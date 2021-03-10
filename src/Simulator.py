@@ -255,11 +255,10 @@ class BaseSim:
         self.done_reason = "Null"
         self.action_memory = []
         self.steps = 0
-        self.env_map.targets = []
 
         self.history.reset_history()
 
-        return self.car.get_car_state()
+        return self.get_observation()
 
     def reset_lap(self):
         self.steps = 0
@@ -268,45 +267,20 @@ class BaseSim:
         self.action_memory.clear()
         self.done = False
 
-    def render(self, wait=False, scan_sim=None, save=False, pts1=None, pts2=None):
+    def render(self, wait=False):
         self.env_map.render_map(4)
+        # plt.show()
         fig = plt.figure(4)
 
-        if scan_sim is not None:
-            for i in range(scan_sim.number_of_beams):
-                angle = i * scan_sim.dth + self.car.theta - scan_sim.fov/2
-                fs = scan_sim.scan_output[i] * scan_sim.n_searches * scan_sim.step_size
-                dx =  [np.sin(angle) * fs, np.cos(angle) * fs]
-                range_val = lib.add_locations([self.car.x, self.car.y], dx)
-                cx, cy = self.env_map.convert_position([self.car.x, self.car.y])
-                rx, ry = self.env_map.convert_position(range_val)
-                x = [cx, rx]
-                y = [cy, ry]
-                plt.plot(x, y)
-
-        xs, ys = [], []
-        for pos in self.action_memory:
-            x, y = self.env_map.xy_to_row_column(pos)
-            xs.append(x)
-            ys.append(y)
+        xs, ys = self.env_map.convert_positions(self.action_memory)
         plt.plot(xs, ys, 'r', linewidth=3)
         plt.plot(xs, ys, '+', markersize=12)
+
         x, y = self.env_map.xy_to_row_column([self.car.x, self.car.y])
         plt.plot(x, y, 'x', markersize=20)
 
-        if pts1 is not None:
-            for i, pt in enumerate(pts1):
-                x, y = self.env_map.convert_position(pt)
-                plt.text(x, y, f"{i}")
-                plt.plot(x, y, 'x', markersize=10)
-
-        if pts2 is not None:
-            for pt in pts2:
-                x, y = self.env_map.convert_position(pt)
-                plt.plot(x, y, 'o', markersize=6)
-
-        text_x = self.env_map.obs_img.shape[0] + 10
-        text_y = self.env_map.obs_img.shape[1] / 10
+        text_x = self.env_map.map_width + 1
+        text_y = self.env_map.map_height / 10
 
         s = f"Reward: [{self.reward:.1f}]" 
         plt.text(text_x, text_y * 1, s)
@@ -333,9 +307,6 @@ class BaseSim:
         plt.pause(0.0001)
         if wait:
             plt.show()
-
-        if save and self.eps % 2 == 0:
-            plt.savefig(f'TrainingFigs/t{self.eps}.png')
 
     def min_render(self, wait=False):
         fig = plt.figure(4)
@@ -402,6 +373,7 @@ class BaseSim:
 
         observation = np.concatenate([car_obs, scan])
         return observation
+
 
 class TrackSim(BaseSim):
     """
@@ -470,7 +442,7 @@ class ForestSim(BaseSim):
     Simulator for Race Tracks
     """
     def __init__(self, sim_conf, map_name):
-        env_map = ForestMap(sim_conf)
+        env_map = ForestMap(sim_conf, map_name)
         BaseSim.__init__(self, env_map)
 
     def step(self, action, dt=None):
@@ -482,36 +454,34 @@ class ForestSim(BaseSim):
 
         # self.check_done_forest()
 
-        obs = self.car.get_car_state()
+        obs = self.get_observation()
         done = self.done
         reward = self.reward
 
         return obs, reward, done, None
 
     def reset(self, add_obs=True):
-        self.car.x = self.env_map.start[0]
-        self.car.y = self.env_map.start[1]
+        self.car.x = self.env_map.start_pose[0]
+        self.car.y = self.env_map.start_pose[1]
         self.car.prev_loc = [self.car.x, self.car.y]
         self.car.velocity = 0
         self.car.steering = 0
-        self.car.theta = 0
+        self.car.theta = self.env_map.start_pose[2]
 
-        # self.env_map.reset_dynamic_map(4)
-        
         if add_obs:
-            wpts, vs = self.env_map.reset_static_map()
-        else:
-            wpts, vs = self.env_map.reset_no_obs()
-        s = self.base_reset()
+            self.env_map.generate_forest()
 
-        return s, wpts, vs
+        print(f"Calling render in reset()")
+        self.render(True)
+        
+        return self.base_reset()
 
     def check_done_forest(self):
         self.reward = 0 # normal
         # check if finished lap
-        dx = self.car.x - self.env_map.end[0]
-        dx_lim = self.env_map.width * 0.5
-        if dx < dx_lim and self.car.y > self.env_map.end[1]:
+        dx = self.car.x - self.env_map.start_pose[0]
+        dx_lim = self.env_map.forest_width * 0.5
+        if dx < dx_lim and self.car.y > self.env_map.end_y:
             self.done = True
             self.reward = 1
             self.done_reason = f"Lap complete"
@@ -522,7 +492,6 @@ class ForestSim(BaseSim):
             self.reward = -1
             self.done_reason = f"Crash obstacle: [{self.car.x:.2f}, {self.car.y:.2f}]"
         horizontal_force = self.car.mass * self.car.th_dot * self.car.velocity
-        self.y_forces.append(horizontal_force)
         # check forces
         # if horizontal_force > self.car.max_friction_force:
             # self.done = True
@@ -530,7 +499,7 @@ class ForestSim(BaseSim):
             # print(f"ThDot: {self.car.th_dot} --> Vel: {self.car.velocity}")
             # self.done_reason = f"Friction: {horizontal_force} > {self.car.max_friction_force}"
         # check steps
-        if self.steps > 100:
+        if self.steps > self.max_steps:
             self.done = True
             self.reward = -1
             self.done_reason = f"Max steps"

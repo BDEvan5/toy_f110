@@ -1,5 +1,6 @@
 import numpy as np 
 from matplotlib import pyplot as plt
+import os
 
 import toy_f110.LibFunctions as lib
 from toy_f110.SimMaps import TrackMap, ForestMap
@@ -232,6 +233,7 @@ class BaseSim:
         self.scan_sim.set_check_fcn(self.env_map.check_scan_location)
 
         self.done = False
+        self.colission = False
         self.reward = 0
         self.action = np.zeros((2))
         self.action_memory = []
@@ -244,22 +246,24 @@ class BaseSim:
         self.steps += 1
         v_ref = action[0]
         d_ref = action[1]
-        self.action = action
 
         frequency_ratio = 1 # cs updates per planning update
         self.car.prev_loc = [self.car.x, self.car.y]
-        for i in range(frequency_ratio):
+        for i in range(frequency_ratio): # TODO: remove this stuff.
             acceleration, steer_dot = self.control_system(v_ref, d_ref)
             self.car.update_kinematic_state(acceleration, steer_dot, self.timestep)
             if done_fcn():
                 break
 
-        self.history.velocities.append(self.car.velocity)
-        self.history.steering.append(self.car.steering)
-        self.history.positions.append([self.car.x, self.car.y])
-        self.history.thetas.append(self.car.theta)
+        if action[0] != self.action[0]:
+            self.action = action
+            self.history.velocities.append(self.car.velocity)
+            self.history.steering.append(self.car.steering)
+            self.history.positions.append([self.car.x, self.car.y])
+            self.history.thetas.append(self.car.theta)
         
-        self.action_memory.append([self.car.x, self.car.y])
+            self.action_memory.append([self.car.x, self.car.y])
+            #TODO: positions and action mem are the same thing
 
     def control_system(self, v_ref, d_ref):
 
@@ -395,15 +399,23 @@ class BaseSim:
         pose = car_obs[0:3]
         scan = self.scan_sim.get_scan(pose)
 
-        observation = np.concatenate([car_obs, scan])
+        observation = np.concatenate([car_obs, scan, [self.reward]])
         return observation
 
 
 class TrackSim(BaseSim):
     """
     Simulator for Race Tracks
+
+    Args:
+        map_name: name of map to use.
+        sim_conf: config file for simulation
     """
-    def __init__(self, sim_conf, map_name):
+    def __init__(self, map_name, sim_conf=None):
+        if sim_conf is None:
+            path = os.path.dirname(__file__)
+            sim_conf = lib.load_conf(path, "std_config")
+
         env_map = TrackMap(sim_conf, map_name)
         BaseSim.__init__(self, env_map)
         self.end_distance = sim_conf.end_distance
@@ -426,6 +438,8 @@ class TrackSim(BaseSim):
         self.car.steering = 0
         self.car.theta = self.env_map.start_pose[2]
 
+        self.reset_lap()
+
         #TODO: combine with reset lap that it can be called every lap and do the right thing
 
         if add_obs:
@@ -437,6 +451,7 @@ class TrackSim(BaseSim):
         self.reward = 0 # normal
         if self.env_map.check_scan_location([self.car.x, self.car.y]):
             self.done = True
+            self.colission = True
             self.reward = -1
             self.done_reason = f"Crash obstacle: [{self.car.x:.2f}, {self.car.y:.2f}]"
         # horizontal_force = self.car.mass * self.car.th_dot * self.car.velocity
@@ -450,11 +465,11 @@ class TrackSim(BaseSim):
             self.done_reason = f"Max steps"
 
         car = [self.car.x, self.car.y]
-        end_dis = 1
-        if lib.get_distance(car, self.env_map.start_pose[0:2]) < self.end_distance and self.steps > 100:
+        cur_end_dis = lib.get_distance(car, self.env_map.start_pose[0:2]) 
+        if cur_end_dis < self.end_distance and self.steps > 100:
             self.done = True
             self.reward = 1
-            self.done_reason = f"Lap complete"
+            self.done_reason = f"Lap complete, d: {cur_end_dis}"
 
 
         return self.done

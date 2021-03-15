@@ -42,7 +42,7 @@ class TrackMap:
             map_img_path = 'maps/' + yaml_file['image']
             self.start_pose = np.array(yaml_file['start_pose'])
         except Exception as e:
-            print(e)
+            print(f"Problem loading, check key: {e}")
             raise FileIO("Problem loading map yaml file")
 
         self.map_img = np.array(Image.open(map_img_path).transpose(Image.FLIP_TOP_BOTTOM))
@@ -59,7 +59,7 @@ class TrackMap:
         dt = ndimage.distance_transform_edt(self.map_img) 
         self.dt = np.array(dt *self.resolution)
     
-    def add_obstacles(self):
+    def add_obstacles1(self):
         self.obs_img = np.zeros_like(self.obs_img)
 
         #TODO: copy new code in here to vectorise and improve
@@ -86,6 +86,45 @@ class TrackMap:
                 for j in range(0, int(obs_size[1])):
                     x, y = self.xy_to_row_column([obs[0], obs[1]])
                     self.obs_img[y+j, x+i] = 1
+
+    def add_obstacles(self, n_obstacles=4, obstacle_size=[0.5, 0.5]):
+        """
+        Adds a set number of obstacles to the envioronment. 
+        Updates the renderer and the map kept by the laser scaner for each vehicle in the simulator
+
+        Args:
+            n_obstacles (int): number of obstacles to add
+            obstacle_size (list(2)): rectangular size of obstacles
+            
+        Returns:
+            None
+        """
+        obs_img = np.zeros_like(self.obs_img)
+
+        #TODO: copy new code in here to vectorise and improve
+
+        obs_size = self.obs_size
+        obs_size = np.array([obs_size, obs_size]) / self.resolution
+
+        obs_size_m = np.array(obstacle_size)
+        obs_size_px = obs_size_m / self.resolution
+
+        obs_locations = []
+        while len(obs_locations) < n_obstacles:
+            rand_x = int(np.random.random() * (self.map_width - obs_size_px[0]))
+            rand_y = int(np.random.random() * (self.map_height - obs_size_px[1]))
+
+            if self.dt[rand_y, rand_x] > 0.05:
+                obs_locations.append([rand_y, rand_x])
+
+        obs_locations = np.array(obs_locations)
+        for location in obs_locations:
+            x, y = location[0], location[1]
+            for i in range(0, int(obs_size_px[0])):
+                for j in range(0, int(obs_size_px[1])):
+                    obs_img[x+i, y+j] = 0
+
+        self.obs_img = obs_img
 
     def xy_to_row_column(self, pt_xy):
         c = int((pt_xy[0] - self.origin[0]) / self.resolution)

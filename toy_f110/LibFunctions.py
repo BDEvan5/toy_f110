@@ -5,8 +5,8 @@ import cmath
 import yaml
 from argparse import Namespace
 
-def load_conf(fname):
-    with open('config/' + fname + '.yaml') as file:
+def load_conf(path, fname):
+    with open(path + '/config/' + fname + '.yaml') as file:
         conf_dict = yaml.load(file, Loader=yaml.FullLoader)
 
     conf = Namespace(**conf_dict)

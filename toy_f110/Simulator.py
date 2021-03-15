@@ -1,8 +1,8 @@
 import numpy as np 
 from matplotlib import pyplot as plt
 
-import src.LibFunctions as lib
-from src.SimMaps import TrackMap, ForestMap
+import toy_f110.LibFunctions as lib
+from toy_f110.SimMaps import TrackMap, ForestMap
 
 
 class CarModel:

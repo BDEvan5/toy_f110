@@ -7,7 +7,7 @@ LONG_DESCRIPTION = 'Toy f110 simulator for fast prototyping and testing of algor
 # Setting up
 setup(
        # the name must match the folder name 'verysimplemodule'
-        name="ToySimulator", 
+        name="toy_f110", 
         version=VERSION,
         author="Benjamin Evans",
         author_email="<youremail@email.com>",
@@ -21,9 +21,7 @@ setup(
         classifiers= [
             "Development Status :: 3 - Alpha",
             "Intended Audience :: Education",
-            "Programming Language :: Python :: 2",
             "Programming Language :: Python :: 3",
-            "Operating System :: MacOS :: MacOS X",
-            "Operating System :: Microsoft :: Windows",
+            "Operating System :: Linux",
         ]
 )

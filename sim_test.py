@@ -1,8 +1,10 @@
 from matplotlib import pyplot as plt
 import numpy as np 
 
-from src.Simulator import TrackSim, ForestSim
-import src.LibFunctions as lib
+from toy_f110.Simulator import TrackSim, ForestSim
+import toy_f110.LibFunctions as lib
+
+
 
 
 def follow_the_finder(obs):

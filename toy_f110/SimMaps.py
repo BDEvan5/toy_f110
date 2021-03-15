@@ -6,7 +6,7 @@ import yaml
 import csv
 from PIL import Image
 
-import src.LibFunctions as lib
+import toy_f110.LibFunctions as lib
 
 class TrackMap:
     def __init__(self, sim_conf, map_name) -> None:

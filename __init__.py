@@ -1,2 +1,2 @@
-from src.Simulator import TrackSim, ForestSim
-from src.SimMaps import SimMap, ForestMap
+from toy_f110.Simulator import TrackSim, ForestSim
+

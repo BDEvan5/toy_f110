@@ -28,6 +28,17 @@ class TrackMap:
 
         self.load_map()
 
+        self.N = None
+        self.ss = None
+        self.wpts = None
+        self.vs = None
+
+        try:
+            # raise FileNotFoundError
+            self._load_csv_track()
+        except FileNotFoundError:
+            print(f"Problem Loading map - generate new one")
+
     def load_map(self):
         file_name = 'maps/' + self.map_name + '.yaml'
         with open(file_name) as file:
@@ -168,10 +179,61 @@ class TrackMap:
 
         plt.gca().set_aspect('equal', 'datalim')
 
+        if self.wpts is not None:
+            xs, ys = self.convert_positions(self.wpts)
+            plt.plot(xs, ys, '--')
+
         plt.pause(0.0001)
         if wait:
             plt.show()
 
+
+
+
+    def _load_csv_track(self):
+        track = []
+        filename = 'maps/' + self.map_name + "_opti.csv"
+        with open(filename, 'r') as csvfile:
+            csvFile = csv.reader(csvfile, quoting=csv.QUOTE_NONNUMERIC)  
+        
+            for lines in csvFile:  
+                track.append(lines)
+
+        track = np.array(track)
+        print(f"Track Loaded: {filename}")
+
+        self.N = len(track)
+        self.ss = track[:, 0]
+        self.wpts = track[:, 1:3]
+        self.vs = track[:, 5]
+
+        self.expand_wpts()
+
+    def expand_wpts(self):
+        n = 5 # number of pts per orig pt
+        dz = 1 / n
+        o_line = self.wpts
+        o_ss = self.ss
+        o_vs = self.vs
+        new_line = []
+        new_ss = []
+        new_vs = []
+        for i in range(self.N-1):
+            dd = lib.sub_locations(o_line[i+1], o_line[i])
+            for j in range(n):
+                pt = lib.add_locations(o_line[i], dd, dz*j)
+                new_line.append(pt)
+
+                ds = o_ss[i+1] - o_ss[i]
+                new_ss.append(o_ss[i] + dz*j*ds)
+
+                dv = o_vs[i+1] - o_vs[i]
+                new_vs.append(o_vs[i] + dv * j * dz)
+
+        self.wpts = np.array(new_line)
+        self.ss = np.array(new_ss)
+        self.vs = np.array(new_vs)
+        self.N = len(new_line)
 
 
 class ForestMap:

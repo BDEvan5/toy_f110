@@ -247,12 +247,12 @@ class BaseSim:
         Runs the dynamics step for the simulator
         
         Args:
-            action(list(2)): [velocity, steering] references which are executed on the vehicle.
+            action(list(2)): [steering, velocity] references which are executed on the vehicle.
             done_fcn: to be removed, checks when done
         """
         self.steps += 1
-        v_ref = action[0]
-        d_ref = action[1]
+        d_ref = action[0]
+        v_ref = action[1]
 
         frequency_ratio = 1 # cs updates per planning update
         self.car.prev_loc = [self.car.x, self.car.y]

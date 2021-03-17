@@ -110,7 +110,7 @@ class TrackMap:
         Returns:
             None
         """
-        obs_img = np.zeros_like(self.obs_img)
+        obs_img = np.zeros_like(self.obs_img) 
 
         #TODO: copy new code in here to vectorise and improve
 
@@ -133,9 +133,17 @@ class TrackMap:
             x, y = location[0], location[1]
             for i in range(0, int(obs_size_px[0])):
                 for j in range(0, int(obs_size_px[1])):
-                    obs_img[x+i, y+j] = 0
+                    obs_img[x+i, y+j] = 255
 
         self.obs_img = obs_img
+        dt = ndimage.distance_transform_edt(self.map_img - obs_img) 
+        self.dt = np.array(dt *self.resolution)
+
+        plt.figure(1)
+        plt.imshow(obs_img)
+        plt.figure(2)
+        plt.imshow(self.dt)
+        plt.show()
 
     def xy_to_row_column(self, pt_xy):
         c = int((pt_xy[0] - self.origin[0]) / self.resolution)

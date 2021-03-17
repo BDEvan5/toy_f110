@@ -220,7 +220,7 @@ class BaseSim:
     """
     Base simulator class
     """
-    def __init__(self, env_map):
+    def __init__(self, env_map: TrackMap):
         self.env_map = env_map
         self.sim_conf = self.env_map.sim_conf
         self.n_obs = self.env_map.n_obs

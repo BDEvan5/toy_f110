@@ -243,6 +243,13 @@ class BaseSim:
         self.done_reason = ""
 
     def base_step(self, action, done_fcn):
+        """
+        Runs the dynamics step for the simulator
+        
+        Args:
+            action(list(2)): [velocity, steering] references which are executed on the vehicle.
+            done_fcn: to be removed, checks when done
+        """
         self.steps += 1
         v_ref = action[0]
         d_ref = action[1]
@@ -292,6 +299,7 @@ class BaseSim:
         self.steps = 0
         self.reward = 0
         self.car.prev_loc = [self.car.x, self.car.y]
+        self.history.reset_history()
         self.action_memory.clear()
         self.done = False
 
@@ -421,6 +429,18 @@ class TrackSim(BaseSim):
         self.end_distance = sim_conf.end_distance
 
     def step(self, action):
+        """
+        Steps the track sim by a timestep. Updates the dynamics and then gets and observation and checks the done status
+        
+        Args:
+            action(list(2)): [velocity, steering] references which are executed on the vehicle.
+            done_fcn: to be removed, checks when done
+        Returns:
+            observation
+            reward: 1, 0, -1 for lap finished, lap not finished, crash respectively.
+            done: if lap complete
+            info: None currently.
+        """
         d_func = self.check_done_reward_track_train
         self.base_step(action, d_func)
 

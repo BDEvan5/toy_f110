@@ -158,7 +158,7 @@ class TrackMap:
         plt.clf()
 
         plt.xlim([0, self.map_width])
-        plt.ylim([self.map_height, 0])
+        # plt.ylim([self.map_height, 0])
 
 
         if self.obs_img is None:

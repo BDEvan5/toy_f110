@@ -10,11 +10,22 @@ class CarModel:
     """
     A simple class which holds the state of a car and can update the dynamics based on the bicycle model
 
-    Args:
-        sim_conf: a config namespace with relevant car parameters
+    Data Members:
+        x: x location of vehicle on map
+        y: y location of vehicle on map
+        theta: orientation of vehicle
+        velocity: 
+        steering: delta steering angle
+        th_dot: the change in orientation due to steering
 
     """
     def __init__(self, sim_conf):
+        """
+        Init function
+
+        Args:
+            sim_conf: a config namespace with relevant car parameters
+        """
         self.x = 0
         self.y = 0
         self.theta = 0
@@ -36,7 +47,7 @@ class CarModel:
 
     def update_kinematic_state(self, a, d_dot, dt):
         """
-        updates the state of the vehicle according to the kinematic equations for a bicycle model
+        Updates the internal state of the vehicle according to the kinematic equations for a bicycle model
 
         Args:
             a: acceleration
@@ -61,6 +72,13 @@ class CarModel:
         self.velocity = np.clip(self.velocity, -self.max_v, self.max_v)
 
     def get_car_state(self):
+        """
+        Returns the state of the vehicle as an array
+
+        Returns:
+            state: [x, y, theta, velocity, steering]
+
+        """
         state = []
         state.append(self.x) #0
         state.append(self.y)
@@ -74,6 +92,24 @@ class CarModel:
 
 
 class ScanSimulator:
+    """
+    A simulation class for a lidar scanner
+
+    Parameters:
+        number of beams: number of laser scans to return
+        fov: field of view
+        std_noise: the standard deviation of the noise which is added to the beams.
+
+    Data members:
+        scan_output: the last scan which was returned
+
+    External Functions:
+        set_check_fcn(fcn): give a function which can be called to check if a certain location falls in the driveable area
+        get_scan(pose): returns a scan
+
+    TODO: njit functions, precompute sines and cosines, improve the step searching
+
+    """
     def __init__(self, number_of_beams=10, fov=np.pi, std_noise=0.01):
         self.number_of_beams = number_of_beams
         self.fov = fov 
@@ -92,10 +128,12 @@ class ScanSimulator:
 
     def get_scan(self, pose):
         """
-        a simple function to get a laser scan reading for a given pose
+        A simple function to get a laser scan reading for a given pose.
+        Adds noise with a std deviation as in the config file
 
         Args:
             pose: [x, y, theta] of the vehicle at present state
+        
         Returns:
             scan: array of the output from the laser scan.
         """
@@ -104,14 +142,24 @@ class ScanSimulator:
         theta = pose[2]
         for i in range(self.number_of_beams):
             scan_theta = theta + self.dth * i - self.fov/2
-            self.scan_output[i] = self.trace_ray(x, y, scan_theta)
+            self.scan_output[i] = self._trace_ray(x, y, scan_theta)
 
-        noise = self.rng.normal(0., self.std_noise, size=self.number_of_beams)
-        self.scan_output = self.scan_output + noise
+        # noise = self.rng.normal(0., self.std_noise, size=self.number_of_beams)
+        # self.scan_output = self.scan_output + noise
 
         return self.scan_output
 
-    def trace_ray(self, x, y, theta, noise=True):
+    def _trace_ray(self, x, y, theta):
+        """
+        returns the % of the max range finder range which is in the driveable area for a single ray
+
+        Args:
+            x: x location
+            y: y location
+            theta: angle of orientation
+
+        TODO: use pre computed sins and cosines
+        """
         # obs_res = 10
         for j in range(self.n_searches): # number of search points
             fs = self.step_size * (j + 1)  # search from 1 step away from the point
@@ -124,6 +172,12 @@ class ScanSimulator:
         return ray
 
     def set_check_fcn(self, check_fcn):
+        """
+        Sets the function which is used interally to see if a location is driveable
+
+        Args: 
+            check_fcn: a function which can be called with a location as an argument
+        """
         self._check_location = check_fcn
 
 
@@ -219,8 +273,25 @@ class SimHistory:
 class BaseSim:
     """
     Base simulator class
+
+    Important parameters:
+        timestep: how long the simulation steps for
+        max_steps: the maximum amount of steps the sim can take
+
+    Data members:
+        car: a model of a car with the ability to update the dynamics
+        scan_sim: a simulator for a laser scanner
+        action: the current action which has been given
+        history: a data logger for the history
     """
     def __init__(self, env_map: TrackMap):
+        """
+        Init function
+
+        Args:
+            env_map: an env_map object which holds a map and has mapping functions
+
+        """
         self.env_map = env_map
         self.sim_conf = self.env_map.sim_conf
         self.n_obs = self.env_map.n_obs
@@ -273,6 +344,18 @@ class BaseSim:
             #TODO: positions and action mem are the same thing
 
     def control_system(self, v_ref, d_ref):
+        """
+        Generates acceleration and steering velocity commands to follow a reference
+        Note: the controller gains are hand tuned in the fcn
+
+        Args:
+            v_ref: the reference velocity to be followed
+            d_ref: reference steering to be followed
+
+        Returns:
+            a: acceleration
+            d_dot: the change in delta = steering velocity
+        """
 
         kp_a = 10
         a = (v_ref - self.car.velocity) * kp_a
@@ -286,6 +369,12 @@ class BaseSim:
         return a, d_dot
 
     def base_reset(self):
+        """
+        Resets the essential parts of the simulator and the history
+
+        Returns:
+            state observation
+        """
         self.done = False
         self.done_reason = "Null"
         self.action_memory = []
@@ -296,6 +385,11 @@ class BaseSim:
         return self.get_observation()
 
     def reset_lap(self):
+        """
+        Resets the lap:
+
+        TODO: remove this function and combine with base reset
+        """
         self.steps = 0
         self.reward = 0
         self.car.prev_loc = [self.car.x, self.car.y]
@@ -304,6 +398,12 @@ class BaseSim:
         self.done = False
 
     def render(self, wait=False):
+        """
+        Renders the map using the plt library
+
+        Args:
+            wait: plt.show() should be called or not
+        """
         self.env_map.render_map(4)
         # plt.show()
         fig = plt.figure(4)
@@ -345,6 +445,9 @@ class BaseSim:
             plt.show()
 
     def min_render(self, wait=False):
+        """
+        TODO: deprecate
+        """
         fig = plt.figure(4)
         plt.clf()  
 
@@ -403,6 +506,9 @@ class BaseSim:
             plt.show()
   
     def get_observation(self):
+        """
+        Combines different parts of the simulator to get a state observation which can be returned.
+        """
         car_obs = self.car.get_car_state()
         pose = car_obs[0:3]
         scan = self.scan_sim.get_scan(pose)
@@ -413,13 +519,20 @@ class BaseSim:
 
 class TrackSim(BaseSim):
     """
-    Simulator for Race Tracks
+    Simulator for Race Tracks, inherits from the base sim and adds a layer for use with a race track for f110
 
-    Args:
-        map_name: name of map to use.
-        sim_conf: config file for simulation
+    Important to note the check_done function which checks if the episode is complete
+        
     """
     def __init__(self, map_name, sim_conf=None):
+        """
+        Init function
+
+        Args:
+            map_name: name of map to use.
+            sim_conf: config file for simulation
+
+        """
         if sim_conf is None:
             path = os.path.dirname(__file__)
             sim_conf = lib.load_conf(path, "std_config")
@@ -451,6 +564,15 @@ class TrackSim(BaseSim):
         return obs, reward, done, None
 
     def reset(self, add_obs=True):
+        """
+        Resets the simulation
+
+        Args:
+            add_obs: a boolean flag if obstacles should be added to the map
+
+        Returns:
+            state observation
+        """
         self.car.x = self.env_map.start_pose[0]
         self.car.y = self.env_map.start_pose[1]
         self.car.prev_loc = [self.car.x, self.car.y]
@@ -468,6 +590,12 @@ class TrackSim(BaseSim):
         return self.get_observation()
 
     def check_done_reward_track_train(self):
+        """
+        Checks if the race lap is complete
+
+        Returns
+            Done flag
+        """
         self.reward = 0 # normal
         if self.env_map.check_scan_location([self.car.x, self.car.y]):
             self.done = True

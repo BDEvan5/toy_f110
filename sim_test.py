@@ -27,7 +27,7 @@ def follow_the_finder(obs):
 
     v_ref = 5
 
-    return [v_ref, delta_ref]
+    return [delta_ref, v_ref]
 
 
 
@@ -35,12 +35,12 @@ def track_sim_test():
     """
     Test for the track simulator
     """
-    sim_conf = lib.load_conf("std_config")
+    sim_conf = lib.load_conf("toy_f110", "std_config")
     map_name = "porto"
 
-    env = TrackSim(sim_conf, map_name)
+    env = TrackSim(map_name, sim_conf)
 
-    done, state, score = False, env.reset(None), 0.0
+    done, state, score = False, env.reset(True), 0.0
     while not done:
         action = follow_the_finder(state)
         s_p, r, done, _ = env.step(action)
@@ -48,7 +48,7 @@ def track_sim_test():
         state = s_p
 
     print(f"Score: {score}")
-    env.history.show_history()
+    # env.history.show_history()
     env.render(True)
 
 
@@ -56,7 +56,7 @@ def forest_sim_test():
     """
     Test for the Forest simulator
     """
-    sim_conf = lib.load_conf("std_config")
+    sim_conf = lib.load_conf("toy_f110", "std_config")
     map_name = "forest"
 
     env = ForestSim(sim_conf, map_name)
@@ -77,5 +77,5 @@ def forest_sim_test():
 
 
 if __name__ == "__main__":
-    # track_sim_test()
-    forest_sim_test()
+    track_sim_test()
+    # forest_sim_test()

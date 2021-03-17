@@ -6,7 +6,8 @@ import yaml
 from argparse import Namespace
 
 def load_conf(path, fname):
-    with open(path + '/config/' + fname + '.yaml') as file:
+    full_path = path + '/config/' + fname + '.yaml'
+    with open(full_path) as file:
         conf_dict = yaml.load(file, Loader=yaml.FullLoader)
 
     conf = Namespace(**conf_dict)
@@ -20,7 +21,7 @@ def add_locations(x1=[0, 0], x2=[0, 0], dx=1):
     ret = [0.0, 0.0]
     for i in range(2):
         ret[i] = x1[i] + x2[i] * dx
-    return ret
+    return np.array(ret)
 
 
 def get_distance(x1=[0, 0], x2=[0, 0]):

@@ -28,10 +28,11 @@ class TrackMap:
 
         self.load_map()
 
-        self.N = None
         self.ss = None
         self.wpts = None
-        self.vs = None
+        self.t_pts = None
+        self.nvecs = None
+        self.ws = None 
 
         try:
             # raise FileNotFoundError
@@ -98,7 +99,7 @@ class TrackMap:
                     x, y = self.xy_to_row_column([obs[0], obs[1]])
                     self.obs_img[y+j, x+i] = 1
 
-    def add_obstacles(self, n_obstacles=4, obstacle_size=[0.5, 0.5]):
+    def add_obstacles2(self, n_obstacles=4, obstacle_size=[0.5, 0.5]):
         """
         Adds a set number of obstacles to the envioronment. 
         Updates the renderer and the map kept by the laser scaner for each vehicle in the simulator
@@ -145,6 +146,43 @@ class TrackMap:
         plt.imshow(self.dt)
         plt.show()
 
+    def add_obstacles(self):
+        obs_img = np.zeros_like(self.obs_img) 
+        obs_size_m = np.array([self.obs_size, self.obs_size]) 
+        obs_size_px = obs_size_m / self.resolution
+
+        rands = np.random.uniform(size=(self.n_obs, 2))
+        idx_rands = rands[:, 0] * len(self.ws)
+        w_rands = (rands[:, 1] * 2 - np.ones_like(rands[:, 1])) * np.mean(self.ws) # x average length, adjusted to be both sides of track
+
+        obs_locations = []
+        for i in range(self.n_obs):
+            idx = idx_rands[i]
+            w = w_rands[i]
+            
+            int_idx = int(idx) # note that int always rounds down
+            dcml_idx = idx - int_idx
+
+            # start with using just int_idx
+            n = self.nvecs[i]
+            offset = np.array([n[0]*w, n[1]*w])
+            location = lib.add_locations(self.t_pts[int_idx], offset)
+            location = np.flip(location)
+            rc_location = self.xy_to_row_column(location)
+            location = np.array(location, dtype=int)
+            obs_locations.append(rc_location)
+
+        obs_locations = np.array(obs_locations)
+        for location in obs_locations:
+            x, y = location[0], location[1]
+            for i in range(0, int(obs_size_px[0])):
+                for j in range(0, int(obs_size_px[1])):
+                    obs_img[x+i, y+j] = 255
+
+        self.obs_img = obs_img
+        dt = ndimage.distance_transform_edt(self.map_img - obs_img) 
+        self.dt = np.array(dt *self.resolution)
+
     def xy_to_row_column(self, pt_xy):
         c = int((pt_xy[0] - self.origin[0]) / self.resolution)
         r = int((pt_xy[1] - self.origin[1]) / self.resolution)
@@ -158,8 +196,6 @@ class TrackMap:
         val = self.dt[r, c]
 
         if val < 0.1:
-            return True
-        if self.obs_img[r, c]:
             return True
         return False
 
@@ -195,9 +231,6 @@ class TrackMap:
         if wait:
             plt.show()
 
-
-
-
     def _load_csv_track(self):
         track = []
         filename = 'maps/' + self.map_name + "_opti.csv"
@@ -210,38 +243,39 @@ class TrackMap:
         track = np.array(track)
         print(f"Track Loaded: {filename}")
 
-        self.N = len(track)
-        self.ss = track[:, 0]
         self.wpts = track[:, 1:3]
-        self.vs = track[:, 5]
+        self.ss = track[:, 0]
 
         self.expand_wpts()
+
+        track = []
+        filename = 'maps/' + self.map_name + "_std.csv"
+        with open(filename, 'r') as csvfile:
+            csvFile = csv.reader(csvfile, quoting=csv.QUOTE_NONNUMERIC)  
+        
+            for lines in csvFile:  
+                track.append(lines)
+
+        track = np.array(track)
+        print(f"Track Loaded: {filename} in env_map")
+
+        self.t_pts = track[:, 0:2]
+        self.nvecs = track[:, 2: 4]
+        self.ws = track[:, 4:6]
 
     def expand_wpts(self):
         n = 5 # number of pts per orig pt
         dz = 1 / n
         o_line = self.wpts
-        o_ss = self.ss
-        o_vs = self.vs
         new_line = []
-        new_ss = []
-        new_vs = []
-        for i in range(self.N-1):
+        for i in range(len(self.wpts)-1):
             dd = lib.sub_locations(o_line[i+1], o_line[i])
             for j in range(n):
                 pt = lib.add_locations(o_line[i], dd, dz*j)
                 new_line.append(pt)
 
-                ds = o_ss[i+1] - o_ss[i]
-                new_ss.append(o_ss[i] + dz*j*ds)
-
-                dv = o_vs[i+1] - o_vs[i]
-                new_vs.append(o_vs[i] + dv * j * dz)
-
         self.wpts = np.array(new_line)
-        self.ss = np.array(new_ss)
-        self.vs = np.array(new_vs)
-        self.N = len(new_line)
+
 
 
 class ForestMap:

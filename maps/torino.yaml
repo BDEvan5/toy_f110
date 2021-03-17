@@ -1,9 +1,4 @@
-crop_x:
-- 200
-- 500
-crop_y:
-- 100
-- 600
+
 free_thresh: 0.196
 image: torino.pgm
 negate: 0
@@ -13,6 +8,7 @@ origin:
 - -7.278537
 - 0.0
 resolution: 0.05
-start:
-- 8
-- 2.8
+
+start_pose: [0, 0, 1.6]
+n_obs: 6
+obs_size: 0.5

@@ -1,10 +1,16 @@
+from matplotlib import pyplot as plt
 import numpy as np 
 
-from src.Simulator import TrackSim, ForestSim
-import src.LibFunctions as lib
+from toy_f110.Simulator import TrackSim, ForestSim
+import toy_f110.LibFunctions as lib
 
 
-def CorridorCS(obs):
+
+
+def follow_the_finder(obs):
+    """
+    Simple follow the longest range finder planner
+    """
     ranges = obs[5:]
     max_range = np.argmax(ranges)
 
@@ -21,50 +27,55 @@ def CorridorCS(obs):
 
     v_ref = 5
 
-    return [v_ref, delta_ref]
+    return [delta_ref, v_ref]
 
 
 
 def track_sim_test():
-    sim_conf = lib.load_conf("std_config")
+    """
+    Test for the track simulator
+    """
+    sim_conf = lib.load_conf("toy_f110", "std_config")
     map_name = "porto"
 
-    env = TrackSim(sim_conf, map_name)
+    env = TrackSim(map_name, sim_conf)
 
-    done, state, score = False, env.reset(None), 0.0
+    done, state, score = False, env.reset(True), 0.0
     while not done:
-        action = CorridorCS(state)
+        action = follow_the_finder(state)
         s_p, r, done, _ = env.step(action)
+        score += r
+        state = s_p
+
+    print(f"Score: {score}")
+    # env.history.show_history()
+    env.render(True)
+
+
+def forest_sim_test():
+    """
+    Test for the Forest simulator
+    """
+    sim_conf = lib.load_conf("toy_f110", "std_config")
+    map_name = "forest"
+
+    env = ForestSim(sim_conf, map_name)
+
+    done, state, score = False, env.reset(), 0.0
+    while not done:
+        action = follow_the_finder(state)
+        s_p, r, done, _ = env.step(action)
+        # env.render(False)
         score += r
         state = s_p
 
     print(f"Score: {score}")
     env.history.show_history()
-    env.render(True)
-    # env.render_snapshot(True)
-
-
-def forest_sim_test():
-    sim_conf = lib.load_conf("std_config")
-    map_name = "forest"
-
-    env = ForestSim(sim_conf, map_name)
-
-    done, state, score = False, env.reset(None), 0.0
-    while not done:
-        action = CorridorCS(state)
-        s_p, r, done, _ = env.step(action)
-        score += r
-        state = s_p
-
-    print(f"Score: {score}")
-    env.show_history()
-    env.render(True)
-    # env.render_snapshot(True)
+    env.render(wait=True)
 
 
 
 
 if __name__ == "__main__":
-    track_sim_test()
-    # forest_sim_test()
+    # track_sim_test()
+    forest_sim_test()

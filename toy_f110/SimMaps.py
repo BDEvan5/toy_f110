@@ -326,8 +326,8 @@ class ForestMap:
         self.map_img = np.zeros((self.map_width, self.map_height))
         rands = np.random.random((self.n_obs, 2))
         xs = rands[:, 0] * (self.map_width-self.obs_size) 
-        ys = rands[:, 1] * (self.map_height - self.obstacle_buffer*2 - self.obs_size)
-        ys = ys + np.ones_like(ys) * self.start_pose[1]
+        ys = rands[:, 1] * (self.map_height - self.obstacle_buffer*2 - self.start_pose[1] - self.obs_size)
+        ys = ys + np.ones_like(ys) * self.start_pose[1] * 2
         obs_locations = np.concatenate([xs[:, None], ys[:, None]], axis=-1)
         obs_locations = np.array(obs_locations, dtype=np.int)
         obs_size_px = int(self.obs_size/self.resolution)

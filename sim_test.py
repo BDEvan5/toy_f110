@@ -79,5 +79,5 @@ def forest_sim_test():
 
 
 if __name__ == "__main__":
-    track_sim_test()
-    # forest_sim_test()
+    # track_sim_test()
+    forest_sim_test()

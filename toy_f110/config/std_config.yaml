@@ -20,4 +20,6 @@ max_steps: 5000
 
 end_distance: 1
 
+dis_scale: 1 # I don't know if this is the right place for this???
+
 

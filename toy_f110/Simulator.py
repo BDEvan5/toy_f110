@@ -104,6 +104,7 @@ class CarModel:
         self.steering = 0
         self.prev_loc = [self.x, self.y]
 
+
 class ScanSimulator:
     """
     A simulation class for a lidar scanner
@@ -339,6 +340,7 @@ class BaseSim:
         v_ref = action[1]
         acceleration, steer_dot = self.control_system(v_ref, d_ref)
         self.car.update_kinematic_state(acceleration, steer_dot, self.timestep)
+        self.steps += 1
 
         return self.done_fcn()
 
@@ -600,7 +602,6 @@ class TrackSim(BaseSim):
         return self.done
 
 
-
 class ForestSim(BaseSim):
     """
     Simulator for Race Tracks
@@ -625,6 +626,12 @@ class ForestSim(BaseSim):
         BaseSim.__init__(self, env_map, self.check_done_forest)
 
     def check_done_forest(self):
+        """
+        Checks if the episode in the forest is complete 
+
+        Returns:
+            done (bool): a flag if the ep is done
+        """
         self.reward = 0 # normal
         # check if finished lap
         dx = self.car.x - self.env_map.start_pose[0]
@@ -658,7 +665,7 @@ class ForestSim(BaseSim):
             self.done_reason = f"Vehicle turned around"
             self.reward = -1
 
-
+        return self.done
 
 
           

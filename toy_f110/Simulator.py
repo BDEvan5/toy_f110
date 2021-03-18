@@ -90,6 +90,19 @@ class CarModel:
 
         return state
 
+    def reset_state(self, start_pose):
+        """
+        Resets the state of the vehicle
+
+        Args:
+            start_pose: the starting, [x, y, theta] to reset to
+        """
+        self.x = start_pose[0]
+        self.y = start_pose[1]
+        self.theta = start_pose[2]
+        self.velocity = 0
+        self.steering = 0
+        self.prev_loc = [self.x, self.y]
 
 class ScanSimulator:
     """
@@ -284,14 +297,15 @@ class BaseSim:
         action: the current action which has been given
         history: a data logger for the history
     """
-    def __init__(self, env_map: TrackMap):
+    def __init__(self, env_map: TrackMap, done_fcn):
         """
         Init function
 
         Args:
             env_map: an env_map object which holds a map and has mapping functions
-
+            done_fcn: a function which checks the state of the simulation for episode completeness
         """
+        self.done_fcn = done_fcn
         self.env_map = env_map
         self.sim_conf = self.env_map.sim_conf #TODO: don't store the conf file, just use and throw away.
         self.n_obs = self.env_map.n_obs
@@ -314,7 +328,7 @@ class BaseSim:
         self.history = SimHistory(self.sim_conf)
         self.done_reason = ""
 
-    def base_control_step(self, action):
+    def step_control(self, action):
         """
         Steps the simulator for a single step
 
@@ -326,8 +340,9 @@ class BaseSim:
         acceleration, steer_dot = self.control_system(v_ref, d_ref)
         self.car.update_kinematic_state(acceleration, steer_dot, self.timestep)
 
+        return self.done_fcn()
 
-    def base_plan_step(self, action, done_fcn):
+    def step_plan(self, action):
         """
         Takes multiple control steps based on the number of control steps per planning step
 
@@ -337,10 +352,16 @@ class BaseSim:
         """
 
         for _ in range(self.plan_steps):
-            self.base_control_step(action)
-            if done_fcn():
+            if self.step_control(action):
                 break
 
+        self.record_history(action)
+
+        obs = self.get_observation()
+        done = self.done
+        reward = self.reward
+
+        return obs, reward, done, None
 
     def record_history(self, action):
         self.action = action
@@ -348,36 +369,6 @@ class BaseSim:
         self.history.steering.append(self.car.steering)
         self.history.positions.append([self.car.x, self.car.y])
         self.history.thetas.append(self.car.theta)
-
-    def base_step(self, action, done_fcn):
-        """
-        Runs the dynamics step for the simulator
-        
-        Args:
-            action(list(2)): [steering, velocity] references which are executed on the vehicle.
-            done_fcn: to be removed, checks when done
-        """
-        self.steps += 1
-        d_ref = action[0]
-        v_ref = action[1]
-
-        frequency_ratio = 1 # cs updates per planning update
-        self.car.prev_loc = [self.car.x, self.car.y]
-        for i in range(frequency_ratio): # TODO: remove this stuff.
-            acceleration, steer_dot = self.control_system(v_ref, d_ref)
-            self.car.update_kinematic_state(acceleration, steer_dot, self.timestep)
-            if done_fcn():
-                break
-
-        if action[0] != self.action[0]:
-            self.action = action
-            self.history.velocities.append(self.car.velocity)
-            self.history.steering.append(self.car.steering)
-            self.history.positions.append([self.car.x, self.car.y])
-            self.history.thetas.append(self.car.theta)
-        
-            self.action_memory.append([self.car.x, self.car.y])
-            #TODO: positions and action mem are the same thing
 
     def control_system(self, v_ref, d_ref):
         """
@@ -404,9 +395,12 @@ class BaseSim:
 
         return a, d_dot
 
-    def base_reset(self):
+    def reset(self, add_obs=True):
         """
-        Resets the essential parts of the simulator and the history
+        Resets the simulation
+
+        Args:
+            add_obs: a boolean flag if obstacles should be added to the map
 
         Returns:
             state observation
@@ -415,23 +409,18 @@ class BaseSim:
         self.done_reason = "Null"
         self.action_memory = []
         self.steps = 0
+        self.reward = 0
+
+        #TODO: move this reset to inside car
+        self.car.reset_state(self.env_map.start_pose)
+
 
         self.history.reset_history()
+
+        if add_obs:
+            self.env_map.add_obstacles()
 
         return self.get_observation()
-
-    def reset_lap(self):
-        """
-        Resets the lap:
-
-        TODO: remove this function and combine with base reset
-        """
-        self.steps = 0
-        self.reward = 0
-        self.car.prev_loc = [self.car.x, self.car.y]
-        self.history.reset_history()
-        self.action_memory.clear()
-        self.done = False
 
     def render(self, wait=False):
         """
@@ -574,56 +563,8 @@ class TrackSim(BaseSim):
             sim_conf = lib.load_conf(path, "std_config")
 
         env_map = TrackMap(sim_conf, map_name)
-        BaseSim.__init__(self, env_map)
+        BaseSim.__init__(self, env_map, self.check_done_reward_track_train)
         self.end_distance = sim_conf.end_distance
-
-    def step(self, action):
-        """
-        Steps the track sim by a timestep. Updates the dynamics and then gets and observation and checks the done status
-        
-        Args:
-            action(list(2)): [velocity, steering] references which are executed on the vehicle.
-            done_fcn: to be removed, checks when done
-        Returns:
-            observation
-            reward: 1, 0, -1 for lap finished, lap not finished, crash respectively.
-            done: if lap complete
-            info: None currently.
-        """
-        d_func = self.check_done_reward_track_train
-        self.base_step(action, d_func)
-
-        obs = self.get_observation()
-        done = self.done
-        reward = self.reward
-
-        return obs, reward, done, None
-
-    def reset(self, add_obs=True):
-        """
-        Resets the simulation
-
-        Args:
-            add_obs: a boolean flag if obstacles should be added to the map
-
-        Returns:
-            state observation
-        """
-        self.car.x = self.env_map.start_pose[0]
-        self.car.y = self.env_map.start_pose[1]
-        self.car.prev_loc = [self.car.x, self.car.y]
-        self.car.velocity = 0
-        self.car.steering = 0
-        self.car.theta = self.env_map.start_pose[2]
-
-        self.reset_lap()
-
-        #TODO: combine with reset lap that it can be called every lap and do the right thing
-
-        if add_obs:
-            self.env_map.add_obstacles()
-        
-        return self.get_observation()
 
     def check_done_reward_track_train(self):
         """
@@ -681,65 +622,7 @@ class ForestSim(BaseSim):
             sim_conf = lib.load_conf(path, "std_config")
 
         env_map = ForestMap(sim_conf, map_name)
-        BaseSim.__init__(self, env_map)
-
-    def step_plan(self, action):
-        """
-        Step the environment with a single planning action which means that multiple control actions are taken.
-
-        Args:
-            action: [steering, velocity] and action to be executed
-
-        Returns:
-            observation
-            reward
-            done
-            info = None
-        """
-        self.base_plan_step(action, self.check_done_forest)
-        self.record_history(action)
-
-        obs = self.get_observation()
-        done = self.done
-        reward = self.reward
-
-        return obs, reward, done, None
-
-    def step_control(self, action):
-        """
-        Step the environment once for a single action
-
-        Args:
-            action: [steering, velocity] and action to be executed
-
-        Returns:
-            observation
-            reward
-            done
-            info = None
-        """
-        self.base_control_step(action)
-        self.check_done_forest()
-        self.record_history(action)
-
-        obs = self.get_observation()
-        done = self.done
-        reward = self.reward
-
-        return obs, reward, done, None
-
-    def reset(self, add_obs=True):
-        self.car.x = self.env_map.start_pose[0]
-        self.car.y = self.env_map.start_pose[1]
-        self.car.prev_loc = [self.car.x, self.car.y]
-        self.car.velocity = 0
-        self.car.steering = 0
-        self.car.theta = self.env_map.start_pose[2]
-
-        if add_obs:
-            self.env_map.generate_forest()
-        
-        return self.base_reset()
+        BaseSim.__init__(self, env_map, self.check_done_forest)
 
     def check_done_forest(self):
         self.reward = 0 # normal

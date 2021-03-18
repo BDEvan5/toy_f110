@@ -322,7 +322,7 @@ class ForestMap:
         self.map_width = int(self.forest_width / self.resolution)
         self.map_img = np.zeros((self.map_width, self.map_height))
 
-    def generate_forest(self):
+    def add_obstacles(self):
         self.map_img = np.zeros((self.map_width, self.map_height))
         rands = np.random.random((self.n_obs, 2))
         xs = rands[:, 0] * (self.map_width-self.obs_size) 

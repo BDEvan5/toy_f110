@@ -43,7 +43,7 @@ def track_sim_test():
     done, state, score = False, env.reset(True), 0.0
     while not done:
         action = follow_the_finder(state)
-        s_p, r, done, _ = env.step(action)
+        s_p, r, done, _ = env.step_plan(action)
         score += r
         state = s_p
 
@@ -79,5 +79,5 @@ def forest_sim_test():
 
 
 if __name__ == "__main__":
-    # track_sim_test()
-    forest_sim_test()
+    track_sim_test()
+    # forest_sim_test()

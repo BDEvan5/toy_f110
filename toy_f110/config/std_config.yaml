@@ -15,6 +15,7 @@ max_d_dot: 3.2
 
 n_beams: 10
 time_step: 0.01
+plan_steps: 10
 max_steps: 5000
 
 end_distance: 1

@@ -59,18 +59,20 @@ def forest_sim_test():
     sim_conf = lib.load_conf("toy_f110", "std_config")
     map_name = "forest"
 
-    env = ForestSim(sim_conf, map_name)
+    env = ForestSim(map_name)
 
     done, state, score = False, env.reset(), 0.0
     while not done:
         action = follow_the_finder(state)
-        s_p, r, done, _ = env.step(action)
+        # s_p, r, done, _ = env.step(action)
+        s_p, r, done, _ = env.step_plan(action)
+        # s_p, r, done, _ = env.step_control(action)
         # env.render(False)
         score += r
         state = s_p
 
     print(f"Score: {score}")
-    env.history.show_history()
+    # env.history.show_history()
     env.render(wait=True)
 
 

@@ -9,8 +9,7 @@ from PIL import Image
 import toy_f110.LibFunctions as lib
 
 class TrackMap:
-    def __init__(self, sim_conf, map_name) -> None:
-        self.sim_conf = sim_conf
+    def __init__(self, map_name) -> None:
         self.map_name = map_name 
 
         # map info
@@ -279,8 +278,7 @@ class TrackMap:
 
 
 class ForestMap:
-    def __init__(self, sim_conf, map_name) -> None:
-        self.sim_conf = sim_conf
+    def __init__(self, map_name) -> None:
         self.map_name = map_name 
 
         # map info
@@ -379,6 +377,82 @@ class ForestMap:
 
         return np.array(xs), np.array(ys)
 
+
+class NavMap:
+    def __init__(self, map_name):
+        self.map_name = map_name 
+
+        # map info
+        self.resolution = None
+        self.map_height = None
+        self.map_width = None
+        
+        self.map_img = None
+
+        self.load_map()
+
+    def load_map(self):
+        file_name = 'nav_maps/' + self.map_name + '.yaml'
+        with open(file_name) as file:
+            documents = yaml.full_load(file)
+            yaml_file = dict(documents.items())
+
+        try:
+            self.resolution = yaml_file['resolution']
+            map_img_path = 'nav_maps/' + yaml_file['image']
+            
+        except Exception as e:
+            print(e)
+            raise FileIO("Problem loading map yaml file")
+
+        self.map_img = np.array(Image.open(map_img_path).transpose(Image.FLIP_TOP_BOTTOM))
+        self.map_img = self.map_img.astype(np.float64)
+
+        # grayscale -> binary
+        self.map_img[self.map_img <= 128.] = 0.
+        self.map_img[self.map_img > 128.] = 255.
+
+        self.map_height = self.map_img.shape[0]
+        self.map_width = self.map_img.shape[1]
+
+    def render_map(self, figure_n=1, wait=False):
+        #TODO: draw the track boundaries nicely
+        f = plt.figure(figure_n)
+        plt.clf()
+
+        plt.xlim([0, self.map_width])
+        plt.ylim([0, self.map_height])
+
+        plt.imshow(self.map_img.T, origin='lower')
+
+        plt.pause(0.0001)
+        if wait:
+            plt.show()
+            pass
+
+    def xy_to_row_column(self, pt):
+        c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width-2)))
+        r = int(round(np.clip(pt[1] / self.resolution, 0, self.map_height-2)))
+        return c, r
+
+    def check_scan_location(self, x_in):
+        if x_in[0] < 0 or x_in[1] < 0:
+            return True
+
+        x, y = self.xy_to_row_column(x_in)
+        if x >= self.map_width or y >= self.map_height:
+            return True
+        if self.map_img[x, y]:
+            return True
+
+    def convert_positions(self, pts):
+        xs, ys = [], []
+        for pt in pts:
+            x, y = self.xy_to_row_column(pt)
+            xs.append(x)
+            ys.append(y)
+
+        return np.array(xs), np.array(ys)
 
 
 

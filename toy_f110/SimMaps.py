@@ -322,6 +322,28 @@ class ForestMap:
 
     def add_obstacles(self):
         self.map_img = np.zeros((self.map_width, self.map_height))
+
+        y_length = (self.end_y - self.obstacle_buffer*2 - self.start_pose[1] - self.obs_size)
+        box_factor = 1.2
+        y_box = y_length / (self.n_obs * box_factor)
+        rands = np.random.random((self.n_obs, 2))
+        xs = rands[:, 0] * (self.forest_width-self.obs_size) 
+        ys = rands[:, 1] * y_box
+        y_start = self.start_pose[1] + self.obstacle_buffer
+        y_pts = [y_start + y_box * box_factor * i for i in range(self.n_obs)]
+        ys = ys + y_pts
+
+        obs_locations = np.concatenate([xs[:, None], ys[:, None]], axis=-1)
+        obs_size_px = int(self.obs_size/self.resolution)
+        for location in obs_locations:
+            x, y = self.xy_to_row_column(location)
+            # print(f"Obstacle: ({location}): {x}, {y}")
+            self.map_img[x:x+obs_size_px, y:y+obs_size_px] = 1
+
+
+
+    def add_obstacles2(self):
+        self.map_img = np.zeros((self.map_width, self.map_height))
         rands = np.random.random((self.n_obs, 2))
         xs = rands[:, 0] * (self.map_width-self.obs_size) 
         ys = rands[:, 1] * (self.map_height - self.obstacle_buffer*2 - self.start_pose[1] - self.obs_size)

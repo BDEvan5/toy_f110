@@ -29,7 +29,7 @@ class TrackSim(BaseSim):
             sim_conf = lib.load_conf(path, "std_config")
 
         env_map = TrackMap(map_name)
-        BaseSim.__init__(self, env_map, self.check_done_reward_track_train)
+        BaseSim.__init__(self, env_map, self.check_done_reward_track_train, sim_conf)
         self.end_distance = sim_conf.end_distance
 
     def check_done_reward_track_train(self):
@@ -87,7 +87,8 @@ class ForestSim(BaseSim):
             sim_conf = lib.load_conf(path, "std_config")
 
         env_map = ForestMap(map_name)
-        BaseSim.__init__(self, env_map, self.check_done_forest)
+        BaseSim.__init__(self, env_map, self.check_done_forest, sim_conf
+        )
 
     def check_done_forest(self):
         """
@@ -148,5 +149,7 @@ class NavSim(BaseSim):
         env_map = NavMap(map_name)
         BaseSim.__init__(self, env_map, self.check_done_forest)
 
-          
+    def reset(self):
+        self.reset()
+        
 

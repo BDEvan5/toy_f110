@@ -298,7 +298,7 @@ class BaseSim:
         action: the current action which has been given
         history: a data logger for the history
     """
-    def __init__(self, env_map: TrackMap, done_fcn):
+    def __init__(self, env_map: TrackMap, done_fcn, sim_conf):
         """
         Init function
 
@@ -308,7 +308,7 @@ class BaseSim:
         """
         self.done_fcn = done_fcn
         self.env_map = env_map
-        self.sim_conf = self.env_map.sim_conf #TODO: don't store the conf file, just use and throw away.
+        self.sim_conf = sim_conf #TODO: don't store the conf file, just use and throw away.
         self.n_obs = self.env_map.n_obs
 
         self.timestep = self.sim_conf.time_step

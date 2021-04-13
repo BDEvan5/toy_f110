@@ -65,54 +65,12 @@ class NavGenertor:
         
         print(f"Saved img: {img_path}")
 
-from PIL import Image as im
-  
-# define a main function
-def main():
-  
-    # create a numpy array from scratch
-    # using arange function.
-    # 1024x720 = 737280 is the amount 
-    # of pixels.
-    # np.uint8 is a data type containing
-    # numbers ranging from 0 to 255 
-    # and no non-negative integers
-    array = np.arange(0, 737280, 1, np.uint8)
-      
-    # check type of array
-    print(type(array))
-      
-    # our array will be of width 
-    # 737280 pixels That means it 
-    # will be a long dark line
-    print(array.shape)
-      
-    # Reshape the array into a 
-    # familiar resoluition
-    array = np.reshape(array, (1024, 720))
-      
-    # show the shape of the array
-    print(array.shape)
-  
-    # show the array
-    print(array)
-      
-    # creating image object of
-    # above array
-    data = im.fromarray(array)
-      
-    # saving the final output 
-    # as a PNG file
-    data.show()
-    data.save('gfg_dummy_pic.png')
-  
-
 def make_pfeiffer():
 
 
     my_map = NavGenertor("pfeiffer", 10, 10)
-    my_map.add_circle([4, 6], 1)
-    my_map.add_rectangle([2, 2], [1, 3])
+    my_map.add_circle([7, 8], 0.8)
+    my_map.add_rectangle([2, 4.25], [5, 1.5])
 
     my_map.save_map("nav_maps/")
 

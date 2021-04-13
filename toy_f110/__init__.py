@@ -1,1 +1,1 @@
-from toy_f110.Simulator import TrackSim, ForestSim
+from toy_f110.SimWrappers import TrackSim, ForestSim

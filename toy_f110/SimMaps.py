@@ -22,7 +22,7 @@ class TrackMap:
         self.obs_size = None
         
         self.map_img = None
-        self.dt = None
+        self.dt_img = None
         self.obs_img = None #TODO: combine to single image with dt for faster scan
 
         self.load_map()
@@ -68,7 +68,7 @@ class TrackMap:
         self.map_width = self.map_img.shape[1]
 
         dt = ndimage.distance_transform_edt(self.map_img) 
-        self.dt = np.array(dt *self.resolution)
+        self.dt_img = np.array(dt *self.resolution)
     
     def add_obstacles1(self):
         self.obs_img = np.zeros_like(self.obs_img)
@@ -125,7 +125,7 @@ class TrackMap:
             rand_x = int(np.random.random() * (self.map_width - obs_size_px[0]))
             rand_y = int(np.random.random() * (self.map_height - obs_size_px[1]))
 
-            if self.dt[rand_y, rand_x] > 0.05:
+            if self.dt_img[rand_y, rand_x] > 0.05:
                 obs_locations.append([rand_y, rand_x])
 
         obs_locations = np.array(obs_locations)
@@ -137,12 +137,12 @@ class TrackMap:
 
         self.obs_img = obs_img
         dt = ndimage.distance_transform_edt(self.map_img - obs_img) 
-        self.dt = np.array(dt *self.resolution)
+        self.dt_img = np.array(dt *self.resolution)
 
         plt.figure(1)
         plt.imshow(obs_img)
         plt.figure(2)
-        plt.imshow(self.dt)
+        plt.imshow(self.dt_img)
         plt.show()
 
     def add_obstacles(self):
@@ -180,7 +180,7 @@ class TrackMap:
 
         self.obs_img = obs_img
         dt = ndimage.distance_transform_edt(self.map_img - obs_img) 
-        self.dt = np.array(dt *self.resolution)
+        self.dt_img = np.array(dt *self.resolution)
 
     def xy_to_row_column(self, pt_xy):
         c = int((pt_xy[0] - self.origin[0]) / self.resolution)
@@ -192,7 +192,7 @@ class TrackMap:
         c, r = self.xy_to_row_column(pt)
         if abs(c) > self.map_width -2 or abs(r) > self.map_height -2:
             return True
-        val = self.dt[r, c]
+        val = self.dt_img[r, c]
 
         if val < 0.1:
             return True
@@ -277,6 +277,7 @@ class TrackMap:
 
 
 
+
 class ForestMap:
     def __init__(self, map_name) -> None:
         self.map_name = map_name 
@@ -292,7 +293,10 @@ class ForestMap:
         self.obs_size = None
         self.obstacle_buffer = None
         self.end_y = None
+
+        self.origin = [0, 0, 0] # for ScanSimulator
         
+        self.dt_img = None
         self.map_img = None
 
         self.load_map()
@@ -320,6 +324,11 @@ class ForestMap:
         self.map_width = int(self.forest_width / self.resolution)
         self.map_img = np.zeros((self.map_width, self.map_height))
 
+        img = np.ones_like(self.map_img) - self.map_img
+        self.dt_img = ndimage.distance_transform_edt(img) * self.resolution
+        self.dt_img = np.array(self.dt_img)
+
+
     def add_obstacles(self):
         self.map_img = np.zeros((self.map_width, self.map_height))
 
@@ -339,8 +348,15 @@ class ForestMap:
             x, y = self.xy_to_row_column(location)
             # print(f"Obstacle: ({location}): {x}, {y}")
             self.map_img[x:x+obs_size_px, y:y+obs_size_px] = 1
+        
+        img = np.ones_like(self.map_img) - self.map_img
+        self.dt_img = ndimage.distance_transform_edt(img) * self.resolution
+        self.dt_img = np.array(self.dt_img)
 
-
+        # plt.figure(1)
+        # plt.imshow(self.dt_img, origin='lower')
+        # plt.show()
+        # plt.pause(0.001)
 
     def add_obstacles2(self):
         self.map_img = np.zeros((self.map_width, self.map_height))
@@ -390,6 +406,16 @@ class ForestMap:
         if self.map_img[x, y]:
             return True
 
+    def check_plan_location(self, x_in):
+        if x_in[0] < 0 or x_in[1] < 0:
+            return True
+        if x_in[0] > self.forest_width or x_in[1] > self.forest_length:
+            return True
+        x, y = self.xy_to_row_column(x_in)
+        if self.dt_img[x, y] < 0.2:
+            return True
+
+
     def convert_positions(self, pts):
         xs, ys = [], []
         for pt in pts:
@@ -398,6 +424,22 @@ class ForestMap:
             ys.append(y)
 
         return np.array(xs), np.array(ys)
+
+    def render_wpts(self, wpts):
+        plt.figure(4)
+        xs, ys = self.convert_positions(wpts)
+        plt.plot(xs, ys, '--', linewidth=2)
+        # plt.plot(xs, ys, '+', markersize=12)
+
+        plt.pause(0.0001)
+
+    def render_aim_pts(self, pts):
+        plt.figure(4)
+        xs, ys = self.convert_positions(pts)
+        # plt.plot(xs, ys, '--', linewidth=2)
+        plt.plot(xs, ys, 'x', markersize=10)
+
+        plt.pause(0.0001)
 
 
 class NavMap:

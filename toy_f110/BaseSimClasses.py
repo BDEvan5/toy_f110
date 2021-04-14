@@ -184,7 +184,9 @@ def get_distance_dt(x, y, dt, orig_x, orig_y, resolution, height, width):
     if c >= width or r >= height:
         return 0
 
-    return dt[r, c]
+    distance = dt[r, c]
+
+    return distance
 
 
 #TODO: move this to another location
@@ -415,6 +417,9 @@ class BaseSim:
 
         if add_obs:
             self.env_map.add_obstacles()
+
+        # update the dt img in the scan simulator after obstacles have been added
+        self.scan_sim.dt = self.env_map.dt_img
 
         return self.get_observation()
 

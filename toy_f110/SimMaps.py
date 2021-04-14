@@ -350,8 +350,13 @@ class ForestMap:
             self.map_img[x:x+obs_size_px, y:y+obs_size_px] = 1
         
         img = np.ones_like(self.map_img) - self.map_img
+        img[0, :] = 0
+        img[-1, :] = 0
+        img[:, 0] = 0
+        img[:, -1] = 0
+
         self.dt_img = ndimage.distance_transform_edt(img) * self.resolution
-        self.dt_img = np.array(self.dt_img)
+        self.dt_img = np.array(self.dt_img).T
 
         # plt.figure(1)
         # plt.imshow(self.dt_img, origin='lower')

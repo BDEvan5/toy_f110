@@ -57,7 +57,7 @@ class TrackSim(BaseSim):
 
         car = [self.car.x, self.car.y]
         cur_end_dis = lib.get_distance(car, self.env_map.start_pose[0:2]) 
-        if cur_end_dis < self.end_distance and self.steps > 100:
+        if cur_end_dis < self.end_distance and self.steps > 400:
             self.done = True
             self.reward = 1
             self.done_reason = f"Lap complete, d: {cur_end_dis}"

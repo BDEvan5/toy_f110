@@ -136,7 +136,9 @@ class ScanSimulator:
     def scan(self, pose):
         scan = get_scan(pose, self.number_of_beams, self.dth, self.dt, self.fov, self.orig_x, self.orig_y, self.resoltuion, self.map_height, self.map_width, self.eps, self.max_range)
 
-        return scan
+        noise = self.rng.normal(0., self.std_noise, size=self.number_of_beams)
+        final_scan = scan + noise
+        return final_scan
 
 
 @njit(cache=True)
@@ -419,7 +421,8 @@ class BaseSim:
             self.env_map.add_obstacles()
 
         # update the dt img in the scan simulator after obstacles have been added
-        self.scan_sim.dt = self.env_map.dt_img
+        dt = self.env_map.set_dt()
+        self.scan_sim.dt = dt
 
         return self.get_observation()
 
@@ -530,7 +533,17 @@ class BaseSim:
         plt.pause(0.0001)
         if wait:
             plt.show()
-  
+    
+    def get_target_obs(self):
+        target = self.env_map.end_goal
+        pos = [self.car.x, self.car.y]
+        base_angle = lib.get_bearing(pos, target) 
+        # angle = base_angle - self.car.theta
+        angle = lib.sub_angles_complex(base_angle, self.car.theta)
+        # angle = lib.add_angles_complex(base_angle, self.car.theta)
+        distance = lib.get_distance(pos, target)
+
+        return [angle, distance]
     def get_observation(self):
         """
         Combines different parts of the simulator to get a state observation which can be returned.
@@ -538,6 +551,7 @@ class BaseSim:
         car_obs = self.car.get_car_state()
         pose = car_obs[0:3]
         scan = self.scan_sim.scan(pose)
+        target = self.get_target_obs()
 
-        observation = np.concatenate([car_obs, scan, [self.reward]])
+        observation = np.concatenate([car_obs, target, scan, [self.reward]])
         return observation

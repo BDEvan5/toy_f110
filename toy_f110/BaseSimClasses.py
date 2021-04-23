@@ -106,96 +106,6 @@ class CarModel:
         self.prev_loc = [self.x, self.y]
 
 
-class ScanSimulator2:
-    """
-    A simulation class for a lidar scanner
-
-    Parameters:
-        number of beams: number of laser scans to return
-        fov: field of view
-        std_noise: the standard deviation of the noise which is added to the beams.
-
-    Data members:
-        scan_output: the last scan which was returned
-
-    External Functions:
-        set_check_fcn(fcn): give a function which can be called to check if a certain location falls in the driveable area
-        get_scan(pose): returns a scan
-
-    TODO: njit functions, precompute sines and cosines, improve the step searching
-
-    """
-    def __init__(self, number_of_beams=10, fov=np.pi, std_noise=0.01):
-        self.number_of_beams = number_of_beams
-        self.fov = fov 
-        self.std_noise = std_noise
-        self.rng = np.random.default_rng(seed=12345)
-
-        self.dth = self.fov / (self.number_of_beams -1)
-        self.scan_output = np.zeros(number_of_beams)
-
-        self.step_size = 0.2
-        self.n_searches = 20
-
-        self.race_map = None
-        self.x_bound = [1, 99]
-        self.y_bound = [1, 99]
-
-    def get_scan(self, pose):
-        """
-        A simple function to get a laser scan reading for a given pose.
-        Adds noise with a std deviation as in the config file
-
-        Args:
-            pose: [x, y, theta] of the vehicle at present state
-        
-        Returns:
-            scan: array of the output from the laser scan.
-        """
-        x = pose[0]
-        y = pose[1]
-        theta = pose[2]
-        for i in range(self.number_of_beams):
-            scan_theta = theta + self.dth * i - self.fov/2
-            self.scan_output[i] = self._trace_ray(x, y, scan_theta)
-
-        # noise = self.rng.normal(0., self.std_noise, size=self.number_of_beams)
-        # self.scan_output = self.scan_output + noise
-
-        return self.scan_output
-
-    def _trace_ray(self, x, y, theta):
-        """
-        returns the % of the max range finder range which is in the driveable area for a single ray
-
-        Args:
-            x: x location
-            y: y location
-            theta: angle of orientation
-
-        TODO: use pre computed sins and cosines
-        """
-        # obs_res = 10
-        for j in range(self.n_searches): # number of search points
-            fs = self.step_size * (j + 1)  # search from 1 step away from the point
-            dx =  [np.sin(theta) * fs, np.cos(theta) * fs]
-            search_val = lib.add_locations([x, y], dx)
-            if self._check_location(search_val):
-                break       
-
-        ray = (j) / self.n_searches #* (1 + np.random.normal(0, self.std_noise))
-        return ray
-
-    def set_check_fcn(self, check_fcn):
-        """
-        Sets the function which is used interally to see if a location is driveable
-
-        Args: 
-            check_fcn: a function which can be called with a location as an argument
-        """
-        self._check_location = check_fcn
-
-
 class ScanSimulator:
     def __init__(self, number_of_beams=10, fov=np.pi, std_noise=0.01):
         self.number_of_beams = number_of_beams
@@ -214,6 +124,11 @@ class ScanSimulator:
         self.eps = 0.01
         self.max_range = 10
 
+    def reset_n_beams(self, n_beams):
+        self.number_of_beams = n_beams
+        self.dth = self.fov / (self.number_of_beams -1)
+
+
     def init_sim_map(self, env_map):
         self.map_height = env_map.map_height
         self.map_width = env_map.map_width
@@ -226,7 +141,9 @@ class ScanSimulator:
     def scan(self, pose):
         scan = get_scan(pose, self.number_of_beams, self.dth, self.dt, self.fov, self.orig_x, self.orig_y, self.resoltuion, self.map_height, self.map_width, self.eps, self.max_range)
 
-        return scan
+        noise = self.rng.normal(0., self.std_noise, size=self.number_of_beams)
+        final_scan = scan + noise
+        return final_scan
 
 
 @njit(cache=True)
@@ -274,7 +191,9 @@ def get_distance_dt(x, y, dt, orig_x, orig_y, resolution, height, width):
     if c >= width or r >= height:
         return 0
 
-    return dt[r, c]
+    distance = dt[r, c]
+
+    return distance
 
 
 #TODO: move this to another location
@@ -319,18 +238,18 @@ class SimHistory:
         plt.plot(self.steering)
         plt.pause(0.001)
 
-        # plt.figure(2)
-        # plt.clf()
-        # plt.title("Velocity history")
-        # plt.plot(self.velocities)
-        # if vs is not None:
-        #     r = len(vs) / len(self.velocities)
-        #     new_vs = []
-        #     for i in range(len(self.velocities)):
-        #         new_vs.append(vs[int(round(r*i))])
-        #     plt.plot(new_vs)
-        #     plt.legend(['Actual', 'Planned'])
-        # plt.pause(0.001)
+        plt.figure(2)
+        plt.clf()
+        plt.title("Velocity history")
+        plt.plot(self.velocities)
+        if vs is not None:
+            r = len(vs) / len(self.velocities)
+            new_vs = []
+            for i in range(len(self.velocities)):
+                new_vs.append(vs[int(round(r*i))])
+            plt.plot(new_vs)
+            plt.legend(['Actual', 'Planned'])
+        plt.pause(0.001)
 
     def show_forces(self):
         mu = self.sim_conf['car']['mu']
@@ -420,8 +339,8 @@ class BaseSim:
         Args:
             action: [steer, speed]
         """
-        d_ref = action[0]
-        v_ref = action[1]
+        d_ref = np.clip(action[0], -self.car.max_steer, self.car.max_steer)
+        v_ref = np.clip(action[1], 0, self.car.max_v)
         acceleration, steer_dot = self.control_system(v_ref, d_ref)
         self.car.update_kinematic_state(acceleration, steer_dot, self.timestep)
         self.steps += 1
@@ -506,9 +425,13 @@ class BaseSim:
         if add_obs:
             self.env_map.add_obstacles()
 
+        # update the dt img in the scan simulator after obstacles have been added
+        dt = self.env_map.set_dt()
+        self.scan_sim.dt = dt
+
         return self.get_observation()
 
-    def render(self, wait=False):
+    def render(self, wait=False, name="No vehicle name set"):
         """
         Renders the map using the plt library
 
@@ -518,6 +441,7 @@ class BaseSim:
         self.env_map.render_map(4)
         # plt.show()
         fig = plt.figure(4)
+        plt.title(name)
 
         xs, ys = self.env_map.convert_positions(self.history.positions)
         plt.plot(xs, ys, 'r', linewidth=3)
@@ -615,7 +539,21 @@ class BaseSim:
         plt.pause(0.0001)
         if wait:
             plt.show()
-  
+    
+    def get_target_obs(self):
+        target = self.env_map.end_goal
+        pos = np.array([self.car.x, self.car.y])
+        base_angle = lib.get_bearing(pos, target) 
+        # angle = base_angle - self.car.theta
+        angle = lib.sub_angles_complex(base_angle, self.car.theta)
+        # angle = lib.add_angles_complex(base_angle, self.car.theta)
+        # distance = lib.get_distance(pos, target)
+
+        em = self.env_map
+        s = calculate_progress(pos, em.ref_pts, em.diffs, em.l2s, em.ss_normal)
+
+        return [angle, s]
+    
     def get_observation(self):
         """
         Combines different parts of the simulator to get a state observation which can be returned.
@@ -623,6 +561,37 @@ class BaseSim:
         car_obs = self.car.get_car_state()
         pose = car_obs[0:3]
         scan = self.scan_sim.scan(pose)
+        target = self.get_target_obs()
 
-        observation = np.concatenate([car_obs, scan, [self.reward]])
+        observation = np.concatenate([car_obs, target, scan, [self.reward]])
         return observation
+
+@njit(cache=True)
+def calculate_progress(point, wpts, diffs, l2s, ss):
+    dots = np.empty((wpts.shape[0]-1, ))
+    dots_shape = dots.shape[0]
+    for i in range(dots_shape):
+        dots[i] = np.dot((point - wpts[i, :]), diffs[i, :])
+    t = dots / l2s
+    t[t<0.0] = 0.0
+    t[t>1.0] = 1.0  #np.clip, unsupported
+    
+    projections = wpts[:-1,:] + (t*diffs.T).T
+
+    # dists = np.linalg.norm(point - projections, axis=1)
+    dists = np.empty((projections.shape[0],))
+    for i in range(dists.shape[0]):
+        temp = point - projections[i]
+        dists[i] = np.sqrt(np.sum(temp*temp))
+
+    min_dist_segment = np.argmin(dists)
+    dist_from_cur_pt = dists[min_dist_segment]
+
+    s = ss[min_dist_segment] + dist_from_cur_pt
+    # print(F"{min_dist_segment} --> SS: {ss[min_dist_segment]}, curr_pt: {dist_from_cur_pt}")
+
+    s = s / ss[-1]
+
+    return s 
+
+

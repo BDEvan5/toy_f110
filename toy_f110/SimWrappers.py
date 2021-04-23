@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 import os
 
 import toy_f110.LibFunctions as lib
-from toy_f110.SimMaps import NavMap, TrackMap, ForestMap
+from toy_f110.SimMaps import TrackMap, ForestMap
 
 from toy_f110.BaseSimClasses import CarModel, ScanSimulator, BaseSim, SimHistory 
 
@@ -57,7 +57,7 @@ class TrackSim(BaseSim):
 
         car = [self.car.x, self.car.y]
         cur_end_dis = lib.get_distance(car, self.env_map.start_pose[0:2]) 
-        if cur_end_dis < self.end_distance and self.steps > 100:
+        if cur_end_dis < self.end_distance and self.steps > 800:
             self.done = True
             self.reward = 1
             self.done_reason = f"Lap complete, d: {cur_end_dis}"
@@ -133,23 +133,5 @@ class ForestSim(BaseSim):
         return self.done
 
 
-class NavSim(BaseSim):
-    def __init__(self, map_name, sim_conf=None):
-        """
-        Init function
-
-        Args:
-            map_name: name of forest map to use.
-            sim_conf: config file for simulation
-        """
-        if sim_conf is None:
-            path = os.path.dirname(__file__)
-            sim_conf = lib.load_conf(path, "std_config")
-
-        env_map = NavMap(map_name)
-        BaseSim.__init__(self, env_map, self.check_done_forest)
-
-    def reset(self):
-        self.reset()
-        
+    
 

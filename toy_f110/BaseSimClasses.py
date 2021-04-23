@@ -124,6 +124,11 @@ class ScanSimulator:
         self.eps = 0.01
         self.max_range = 10
 
+    def reset_n_beams(self, n_beams):
+        self.number_of_beams = n_beams
+        self.dth = self.fov / (self.number_of_beams -1)
+
+
     def init_sim_map(self, env_map):
         self.map_height = env_map.map_height
         self.map_width = env_map.map_width
@@ -233,18 +238,18 @@ class SimHistory:
         plt.plot(self.steering)
         plt.pause(0.001)
 
-        # plt.figure(2)
-        # plt.clf()
-        # plt.title("Velocity history")
-        # plt.plot(self.velocities)
-        # if vs is not None:
-        #     r = len(vs) / len(self.velocities)
-        #     new_vs = []
-        #     for i in range(len(self.velocities)):
-        #         new_vs.append(vs[int(round(r*i))])
-        #     plt.plot(new_vs)
-        #     plt.legend(['Actual', 'Planned'])
-        # plt.pause(0.001)
+        plt.figure(2)
+        plt.clf()
+        plt.title("Velocity history")
+        plt.plot(self.velocities)
+        if vs is not None:
+            r = len(vs) / len(self.velocities)
+            new_vs = []
+            for i in range(len(self.velocities)):
+                new_vs.append(vs[int(round(r*i))])
+            plt.plot(new_vs)
+            plt.legend(['Actual', 'Planned'])
+        plt.pause(0.001)
 
     def show_forces(self):
         mu = self.sim_conf['car']['mu']
@@ -334,8 +339,8 @@ class BaseSim:
         Args:
             action: [steer, speed]
         """
-        d_ref = action[0]
-        v_ref = action[1]
+        d_ref = np.clip(action[0], -self.car.max_steer, self.car.max_steer)
+        v_ref = np.clip(action[1], 0, self.car.max_v)
         acceleration, steer_dot = self.control_system(v_ref, d_ref)
         self.car.update_kinematic_state(acceleration, steer_dot, self.timestep)
         self.steps += 1
@@ -426,7 +431,7 @@ class BaseSim:
 
         return self.get_observation()
 
-    def render(self, wait=False):
+    def render(self, wait=False, name="No vehicle name set"):
         """
         Renders the map using the plt library
 
@@ -436,6 +441,7 @@ class BaseSim:
         self.env_map.render_map(4)
         # plt.show()
         fig = plt.figure(4)
+        plt.title(name)
 
         xs, ys = self.env_map.convert_positions(self.history.positions)
         plt.plot(xs, ys, 'r', linewidth=3)
@@ -536,14 +542,18 @@ class BaseSim:
     
     def get_target_obs(self):
         target = self.env_map.end_goal
-        pos = [self.car.x, self.car.y]
+        pos = np.array([self.car.x, self.car.y])
         base_angle = lib.get_bearing(pos, target) 
         # angle = base_angle - self.car.theta
         angle = lib.sub_angles_complex(base_angle, self.car.theta)
         # angle = lib.add_angles_complex(base_angle, self.car.theta)
-        distance = lib.get_distance(pos, target)
+        # distance = lib.get_distance(pos, target)
 
-        return [angle, distance]
+        em = self.env_map
+        s = calculate_progress(pos, em.ref_pts, em.diffs, em.l2s, em.ss_normal)
+
+        return [angle, s]
+    
     def get_observation(self):
         """
         Combines different parts of the simulator to get a state observation which can be returned.
@@ -555,3 +565,33 @@ class BaseSim:
 
         observation = np.concatenate([car_obs, target, scan, [self.reward]])
         return observation
+
+@njit(cache=True)
+def calculate_progress(point, wpts, diffs, l2s, ss):
+    dots = np.empty((wpts.shape[0]-1, ))
+    dots_shape = dots.shape[0]
+    for i in range(dots_shape):
+        dots[i] = np.dot((point - wpts[i, :]), diffs[i, :])
+    t = dots / l2s
+    t[t<0.0] = 0.0
+    t[t>1.0] = 1.0  #np.clip, unsupported
+    
+    projections = wpts[:-1,:] + (t*diffs.T).T
+
+    # dists = np.linalg.norm(point - projections, axis=1)
+    dists = np.empty((projections.shape[0],))
+    for i in range(dists.shape[0]):
+        temp = point - projections[i]
+        dists[i] = np.sqrt(np.sum(temp*temp))
+
+    min_dist_segment = np.argmin(dists)
+    dist_from_cur_pt = dists[min_dist_segment]
+
+    s = ss[min_dist_segment] + dist_from_cur_pt
+    # print(F"{min_dist_segment} --> SS: {ss[min_dist_segment]}, curr_pt: {dist_from_cur_pt}")
+
+    s = s / ss[-1]
+
+    return s 
+
+

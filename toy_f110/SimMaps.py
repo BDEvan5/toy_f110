@@ -33,6 +33,10 @@ class TrackMap:
         self.t_pts = None
         self.nvecs = None
         self.ws = None 
+        self.ref_pts = None # std wpts that aren't expanded
+        self.ss_normal = None # not expanded
+        self.diffs = None
+        self.l2s = None
 
         try:
             # raise FileNotFoundError
@@ -97,11 +101,14 @@ class TrackMap:
             n = self.nvecs[i]
             offset = np.array([n[0]*w, n[1]*w])
             location = lib.add_locations(self.t_pts[int_idx], offset)
+            if lib.get_distance(location, self.start_pose[0:2]) < 1:
+                continue
             # location = np.flip(location)
             # location = self.t_pts[int_idx]
             rc_location = self.xy_to_row_column(location)
             location = np.array(location, dtype=int)
             obs_locations.append(rc_location)
+
 
         obs_locations = np.array(obs_locations)
         for location in obs_locations:
@@ -113,7 +120,6 @@ class TrackMap:
                         obs_img[y+j, x+i] = 255
 
         self.obs_img = obs_img
-
 
     def set_dt(self):
         dt = ndimage.distance_transform_edt(self.map_img - self.obs_img) 
@@ -193,6 +199,11 @@ class TrackMap:
 
         self.wpts = track[:, 1:3]
         self.ss = track[:, 0]
+        self.ss_normal = np.copy(self.ss)
+        self.ref_pts = np.copy(self.wpts)
+        
+        self.diffs = self.ref_pts[1:,:] - self.ref_pts[:-1,:]
+        self.l2s   = self.diffs[:,0]**2 + self.diffs[:,1]**2
 
         self.expand_wpts()
 
@@ -259,7 +270,13 @@ class ForestMap:
         self.dt_img = None
         self.map_img = None
 
+        self.ref_pts = None # std wpts that aren't expanded
+        self.ss_normal = None # not expanded
+        self.diffs = None
+        self.l2s = None
+
         self.load_map()
+        self.load_center_pts()
 
     def load_map(self):
         file_name = 'maps/' + self.map_name + '.yaml'
@@ -288,16 +305,11 @@ class ForestMap:
 
         self.set_dt()
 
-        # img = np.ones_like(self.map_img) - self.map_img
-        # self.dt_img = ndimage.distance_transform_edt(img) * self.resolution
-        # self.dt_img = np.array(self.dt_img)
-
-
     def add_obstacles(self):
         self.map_img = np.zeros((self.map_width, self.map_height))
 
         y_length = (self.end_y - self.obstacle_buffer*2 - self.start_pose[1] - self.obs_size)
-        box_factor = 1.2
+        box_factor = 1.4
         y_box = y_length / (self.n_obs * box_factor)
         rands = np.random.random((self.n_obs, 2))
         xs = rands[:, 0] * (self.forest_width-self.obs_size) 
@@ -371,7 +383,6 @@ class ForestMap:
         if self.dt_img[y, x] < 0.2:
             return True
 
-
     def convert_positions(self, pts):
         xs, ys = [], []
         for pt in pts:
@@ -397,82 +408,37 @@ class ForestMap:
 
         plt.pause(0.0001)
 
+    def load_center_pts(self):
 
-class NavMap:
-    def __init__(self, map_name):
-        self.map_name = map_name 
-
-        # map info
-        self.resolution = None
-        self.map_height = None
-        self.map_width = None
+        track = []
+        filename = 'maps/' + self.map_name + "_opti.csv"
+        with open(filename, 'r') as csvfile:
+            csvFile = csv.reader(csvfile, quoting=csv.QUOTE_NONNUMERIC)  
         
-        self.map_img = None
+            for lines in csvFile:  
+                track.append(lines)
 
-        self.load_map()
+        track = np.array(track)
+        print(f"Track Loaded: {filename}")
 
-    def load_map(self):
-        file_name = 'nav_maps/' + self.map_name + '.yaml'
-        with open(file_name) as file:
-            documents = yaml.full_load(file)
-            yaml_file = dict(documents.items())
-
-        try:
-            self.resolution = yaml_file['resolution']
-            map_img_path = 'nav_maps/' + yaml_file['image']
-            
-        except Exception as e:
-            print(e)
-            raise FileIO("Problem loading map yaml file")
-
-        self.map_img = np.array(Image.open(map_img_path).transpose(Image.FLIP_TOP_BOTTOM))
-        self.map_img = self.map_img.astype(np.float64)
-
-        # grayscale -> binary
-        self.map_img[self.map_img <= 128.] = 0.
-        self.map_img[self.map_img > 128.] = 255.
-
-        self.map_height = self.map_img.shape[0]
-        self.map_width = self.map_img.shape[1]
-
-    def render_map(self, figure_n=1, wait=False):
-        #TODO: draw the track boundaries nicely
-        f = plt.figure(figure_n)
-        plt.clf()
-
-        plt.xlim([0, self.map_width])
-        plt.ylim([0, self.map_height])
-
-        plt.imshow(self.map_img.T, origin='lower')
-
-        plt.pause(0.0001)
-        if wait:
-            plt.show()
-            pass
-
-    def xy_to_row_column(self, pt):
-        c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width-2)))
-        r = int(round(np.clip(pt[1] / self.resolution, 0, self.map_height-2)))
-        return c, r
-
-    def check_scan_location(self, x_in):
-        if x_in[0] < 0 or x_in[1] < 0:
-            return True
-
-        x, y = self.xy_to_row_column(x_in)
-        if x >= self.map_width or y >= self.map_height:
-            return True
-        if self.map_img[x, y]:
-            return True
-
-    def convert_positions(self, pts):
-        xs, ys = [], []
-        for pt in pts:
-            x, y = self.xy_to_row_column(pt)
-            xs.append(x)
-            ys.append(y)
-
-        return np.array(xs), np.array(ys)
+        self.ref_pts = track[:, 1:3]
+        self.ss_normal = track[:, 0]
+        # self.expand_wpts()
+        # print(self.ref_pts)
+        self.diffs = self.ref_pts[1:,:] - self.ref_pts[:-1,:]
+        self.l2s   = self.diffs[:,0]**2 + self.diffs[:,1]**2
 
 
 
+    def expand_wpts(self):
+        n = 5 # number of pts per orig pt
+        dz = 1 / n
+        o_line = self.wpts
+        new_line = []
+        for i in range(len(self.wpts)-1):
+            dd = lib.sub_locations(o_line[i+1], o_line[i])
+            for j in range(n):
+                pt = lib.add_locations(o_line[i], dd, dz*j)
+                new_line.append(pt)
+
+        self.wpts = np.array(new_line)

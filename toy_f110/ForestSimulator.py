@@ -1,4 +1,5 @@
 
+from argparse import ArgumentError
 import csv 
 from scipy import ndimage
 from matplotlib import pyplot as plt
@@ -8,10 +9,10 @@ import numpy as np
 from numba import njit
 import os
 
-import ReferenceModification.LibFunctions as lib
-from ReferenceModification.Simulator.map_utils import *
+import toy_f110.LibFunctions as lib
+from toy_f110.map_utils import *
 
-from ReferenceModification.Simulator.BaseSimulatorClasses import BaseSim
+from toy_f110.BaseSimulatorClasses import BaseSim
 
 
 
@@ -217,9 +218,7 @@ class ForestSim(BaseSim):
             sim_conf: config file for simulation
         """
         if sim_conf is None:
-            # path = os.path.dirname(__file__)
-            # sim_conf = lib.load_conf(path, "std_config")
-            sim_conf = lib.load_conf("std_config")
+            raise ArgumentError("No sim conf provided")
 
         env_map = ForestMap(map_name)
         BaseSim.__init__(self, env_map, self.check_done_forest, sim_conf

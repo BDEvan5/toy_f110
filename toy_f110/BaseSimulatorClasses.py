@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 from matplotlib import pyplot as plt
 
-import ReferenceModification.LibFunctions as lib
+import toy_f110.LibFunctions as lib
 
 class ScanSimulator:
     def __init__(self, number_of_beams=10, fov=np.pi, std_noise=0.01):
@@ -118,18 +118,18 @@ class BaseSim:
         """
         self.done_fcn = done_fcn
         self.env_map = env_map
-        self.sim_conf = sim_conf #TODO: don't store the conf file, just use and throw away.
+
         self.max_v = sim_conf.max_v
         self.max_steer = sim_conf.max_steer
         self.wheelbase = sim_conf.l_r + sim_conf.l_f
 
-        self.timestep = self.sim_conf.time_step
-        self.max_steps = self.sim_conf.max_steps
-        self.plan_steps = self.sim_conf.plan_steps
+        self.timestep = sim_conf.time_step
+        self.max_steps = sim_conf.max_steps
+        self.plan_steps = sim_conf.plan_steps
 
         # state = [x, y, theta, velocity, steering, th_dot]
         self.state = np.zeros(5)
-        self.scan_sim = ScanSimulator(self.sim_conf.n_beams)
+        self.scan_sim = ScanSimulator(sim_conf.n_beams)
         self.scan_sim.init_sim_map(env_map)
 
         self.done = False
@@ -189,9 +189,7 @@ class BaseSim:
         if add_obs:
             self.env_map.add_obstacles()
 
-        # update the dt img in the scan simulator after obstacles have been added
-        dt = self.env_map.set_dt()
-        self.scan_sim.dt = dt
+        self.scan_sim.dt = self.env_map.set_dt()
 
         return self.get_observation()
 

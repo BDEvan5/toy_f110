@@ -105,7 +105,7 @@ class ForestMap:
 
         return self.dt_img
 
-    #TODO: try find a way to reduce these functions 
+    #TODO: try find a way to remove these functions 
     def check_plan_location(self, pt):
         return check_scan_location(pt, self.origin, self.resolution, self.map_width, self.map_height, self.dt_img, 0.2)
 
@@ -256,6 +256,11 @@ class ForestSim(BaseSim):
             self.done = True
             self.done_reason = f"Vehicle turned around"
             self.reward = -1
+
+        elif self.state[2] < 0.5 and self.action[1] < 0.1:
+            self.done = True
+            self.reward = 0
+            self.done_reason = f"Vehicle has stopped moving: Incomplete EP"
 
         return self.done
 
